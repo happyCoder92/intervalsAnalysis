@@ -26,7 +26,9 @@ public class IntervalModuloTest {
 
 	@Parameterized.Parameters
 	public static Collection<Interval[]> intervals() {
+		@SuppressWarnings("unused")
 		final int ma = Integer.MAX_VALUE;
+		@SuppressWarnings("unused")
 		final int mi = Integer.MIN_VALUE;
 		return Arrays.asList(new Interval[][] {
 				{ i(10, 10), i(5, 5), i(0, 0) }, // point cases

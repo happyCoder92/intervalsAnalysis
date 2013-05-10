@@ -37,12 +37,15 @@ public class IntervalPlusTest {
 				{ i(ma, ma), i(1, 1), i(mi, mi) }, // right overflow at point
 				{ i(mi, mi), i(-1, -1), i(ma, ma) }, // left overflow at point
 				{ i(ma-1, ma), i(1, 10), i(mi, ma) }, // right range overflow
+				{ i(ma, ma), i(1, 10), i(mi, mi+9) }, // right point-range overflow
 				{ i(mi, mi+1), i(-1, 10), i(mi, ma) }, // left range overflow
-				{ i(mi, 1), i(-2, -2), i(mi, ma) }, // left only lower overflow
-				{ i(1, ma), i(2, 2), i(mi, ma) }, // right only upper overflow
+				{ i(mi, mi), i(-10, -1), i(ma-9, ma) }, // left point-range overflow
+				{ i(mi, 1), i(-2, -2), i(mi, ma) }, // left only range-point lower overflow
+				{ i(1, ma), i(2, 2), i(mi, ma) }, // right only range-point upper overflow
 				{ i(ma, ma), i(ma, ma), i(-2, -2) }, // right big overflow
 				{ i(mi, mi), i(mi, mi), i(0, 0) }, // left big overflow
 				{ i(mi+1, ma-1), i(-2, 2), i(mi, ma) }, // both sides overflow
+				{ i(mi, ma), i(-2, 2), i(mi, ma) }, // both sides overflow
 				});
 	}
 

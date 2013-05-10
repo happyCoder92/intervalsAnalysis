@@ -60,12 +60,20 @@ public class Interval {
 		return new Interval(Math.min(x, y), Math.max(x, y));
 	}
 	
-	public static boolean isPlusOverflow(int a, int b) {
-		return (long)a+b > Integer.MAX_VALUE || (long)a+b < Integer.MIN_VALUE;
+	public static int isPlusOverflow(int a, int b) {
+		if ((long)a+b > Integer.MAX_VALUE)
+			return 1;
+		if ((long)a+b < Integer.MIN_VALUE)
+			return -1;
+		return 0;
 	}
 	
-	public static boolean isMinusOverflow(int a, int b) {
-		return (long)a-b > Integer.MAX_VALUE || (long)a-b < Integer.MIN_VALUE;
+	public static int isMinusOverflow(int a, int b) {
+		if ((long)a-b > Integer.MAX_VALUE)
+			return 1;
+		if ((long)a-b < Integer.MIN_VALUE)
+			return -1;
+		return 0;
 	}
 	
 	public long size() {

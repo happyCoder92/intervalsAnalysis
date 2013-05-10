@@ -42,6 +42,7 @@ public class IntervalMinusTest {
 				{ i(mi, mi), i(ma, ma), i(1, 1) }, // left big overflow
 				{ i(ma, ma), i(mi, mi), i(-1, -1) }, // right big overflow
 				{ i(mi+1, ma-1), i(-2, 2), i(mi, ma) }, // both sides overflow
+				{ i(mi, ma), i(-2, 2), i(mi, ma) }, // both sides overflow
 				// special minus case - that's why it cannot be implemented using plus
 				{ i(1, 1), i(mi, mi+1), i(mi, mi+1) },
 				});
