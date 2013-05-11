@@ -11,7 +11,8 @@ import static ch.ethz.sae.IntervalHelper.*;
 public class IntervalModuloTest extends IntervalBinaryOperationTest {
 
 	public IntervalModuloTest(Interval a, Interval b, Interval expected) {
-		super(a, b, expected, true, false);
+		// TODO maybe be precise?
+		super(a, b, expected, false, false);
 	}
 
 	@Parameterized.Parameters

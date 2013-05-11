@@ -1,33 +1,24 @@
 package ch.ethz.sae;
 
-import static org.junit.Assert.*;
+import static ch.ethz.sae.IntervalHelper.i;
+import static ch.ethz.sae.IntervalHelper.ma;
+import static ch.ethz.sae.IntervalHelper.mi;
 
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class IntervalUnaryMinusTest {
-
-	private final Interval a;
-	private final Interval expected;
-
-	public IntervalUnaryMinusTest(Interval a, Interval expected) {
-		this.a = a;
-		this.expected = expected;
-	}
+public class IntervalUnaryMinusTest extends IntervalBasicOperationTest<Void, Interval> {
 	
-	public static Interval i(int a, int b) {
-		return new Interval(a, b);
+	public IntervalUnaryMinusTest(Interval a, Interval expected) {
+		super(a, null, expected);
 	}
 
 	@Parameterized.Parameters
 	public static Collection<Interval[]> intervals() {
-		final int ma = Integer.MAX_VALUE;
-		final int mi = Integer.MIN_VALUE;
 		return Arrays.asList(new Interval[][] {
 				{ i(10, 10), i(-10, -10) },
 				{ i(-10, 20), i(-20, 10) },
@@ -37,10 +28,8 @@ public class IntervalUnaryMinusTest {
 				});
 	}
 
-	@Test
-	public void test() {
-		final Interval result = Interval.minus(a);
-		assertEquals(expected, result);
+	@Override
+	protected Interval operation(Interval a, Void p) {
+		return Interval.minus(a);
 	}
-
 }

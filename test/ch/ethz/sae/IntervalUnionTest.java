@@ -12,10 +12,10 @@ import org.junit.runners.Parameterized;
 
 // FIXME
 @RunWith(Parameterized.class)
-public class IntervalUnionTest extends IntervalBasicOperationTest<Interval, Interval> {
+public class IntervalUnionTest extends IntervalBinaryOperationTest {
 
 	public IntervalUnionTest(Interval a, Interval b, Interval expected) {
-		super(a, b, expected);
+		super(a, b, expected, true, true);
 	}
 
 	@Parameterized.Parameters

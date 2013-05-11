@@ -29,6 +29,9 @@ public class Interval {
 	}
 	
 	public long size() {
+		if (isEmpty()) {
+			return 0;
+		}
 		return (long)upper-lower+1;
 	}
 	
@@ -126,9 +129,12 @@ public class Interval {
 	}
 	
 	public static Interval multiply(Interval i1, Interval i2) {
-		// FIXME
+		// FIXME imprecise
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (getOverflowType(i1.lower*i2.lower) != 0 || getOverflowType(i1.upper*i2.upper) != 0) {
+			return top();
 		}
 		return i(i1.lower*i2.lower, i1.upper*i2.upper);
 	}
@@ -199,8 +205,12 @@ public class Interval {
 	}
 	
 	public static Interval modulo(Interval i1, Interval i2) {
+		// FIXME unsound & imprecise
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (i2.size() > 1) {
+			return top();
 		}
 		int div = Math.abs(i2.lower);
 		if (i1.size() > div) {

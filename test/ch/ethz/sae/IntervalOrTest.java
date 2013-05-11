@@ -10,7 +10,7 @@ import org.junit.runners.Parameterized;
 public class IntervalOrTest extends IntervalBinaryOperationTest {
 
 	public IntervalOrTest(Interval a, Interval b, Interval expected) {
-		super(a, b, expected, true, false);
+		super(a, b, expected, true, true);
 	}
 
 	@Parameterized.Parameters

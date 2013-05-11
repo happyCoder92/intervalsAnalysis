@@ -38,6 +38,4 @@ public abstract class IntervalBinaryOperationTest extends IntervalBasicOperation
 		final Interval resultB = operation(p, a);
 		assertEquals(resultA, resultB);
 	}
-
-	protected abstract Interval operation(Interval a, Interval b);
 }
