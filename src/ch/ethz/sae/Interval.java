@@ -64,10 +64,10 @@ public class Interval {
 
 	public static Interval union(Interval a, Interval b) {
 		if (a.isEmpty()) {
-			return a;
+			return b;
 		}
 		if (b.isEmpty()) {
-			return b;
+			return a;
 		}
 		return i(min(a.lower, b.lower), max(a.upper, b.upper));
 	}
