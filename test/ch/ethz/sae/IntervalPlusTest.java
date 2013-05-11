@@ -1,34 +1,21 @@
 package ch.ethz.sae;
 
-import static org.junit.Assert.*;
-
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import static ch.ethz.sae.IntervalHelper.*;
 
 @RunWith(Parameterized.class)
-public class IntervalPlusTest {
-
-	private final Interval a, b;
-	private final Interval expected;
+public class IntervalPlusTest extends IntervalBinaryOperationTest {
 
 	public IntervalPlusTest(Interval a, Interval b, Interval expected) {
-		this.a = a;
-		this.b = b;
-		this.expected = expected;
+		super(a, b, expected);
 	}
 	
-	public static Interval i(int a, int b) {
-		return new Interval(a, b);
-	}
-
 	@Parameterized.Parameters
 	public static Collection<Interval[]> intervals() {
-		final int ma = Integer.MAX_VALUE;
-		final int mi = Integer.MIN_VALUE;
 		return Arrays.asList(new Interval[][] {
 				{ i(10, 10), i(20, 20), i(30, 30) }, // point case
 				{ i(0, 10), i(0, 10), i(0, 20) }, // ranges cases
@@ -49,16 +36,8 @@ public class IntervalPlusTest {
 				});
 	}
 
-	@Test
-	public void test() {
-		final Interval result = Interval.plus(a, b);
-		assertEquals(expected, result);
-	}
-
-	@Test
-	public void testCommutative() {
-		final Interval resultA = Interval.plus(a, b);
-		final Interval resultB = Interval.plus(b, a);
-		assertEquals(resultA, resultB);
+	@Override
+	protected Interval operation(Interval a, Interval b) {
+		return Interval.plus(a, b);
 	}
 }

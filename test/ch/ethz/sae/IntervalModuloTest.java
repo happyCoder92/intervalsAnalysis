@@ -1,35 +1,21 @@
 package ch.ethz.sae;
 
-import static org.junit.Assert.*;
-
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import static ch.ethz.sae.IntervalHelper.*;
 
 @RunWith(Parameterized.class)
-public class IntervalModuloTest {
-	private final Interval a, b;
-	private final Interval expected;
+public class IntervalModuloTest extends IntervalBinaryOperationTest {
 
 	public IntervalModuloTest(Interval a, Interval b, Interval expected) {
-		this.a = a;
-		this.b = b;
-		this.expected = expected;
-	}
-	
-	public static Interval i(int a, int b) {
-		return new Interval(a, b);
+		super(a, b, expected, true, false);
 	}
 
 	@Parameterized.Parameters
 	public static Collection<Interval[]> intervals() {
-		@SuppressWarnings("unused")
-		final int ma = Integer.MAX_VALUE;
-		@SuppressWarnings("unused")
-		final int mi = Integer.MIN_VALUE;
 		return Arrays.asList(new Interval[][] {
 				{ i(10, 10), i(5, 5), i(0, 0) }, // point cases
 				{ i(10, 10), i(-5, -5), i(0, 0) }, // point cases
@@ -43,9 +29,8 @@ public class IntervalModuloTest {
 				});
 	}
 
-	@Test
-	public void test() {
-		final Interval result = Interval.modulo(a, b);
-		assertEquals(expected, result);
+	@Override
+	protected Interval operation(Interval a, Interval b) {
+		return Interval.modulo(a, b);
 	}
 }

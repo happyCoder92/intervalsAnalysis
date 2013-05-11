@@ -1,11 +1,17 @@
 package ch.ethz.sae;
 
+import java.util.Arrays;
+import static java.lang.Math.min;
+import static java.lang.Math.max;
+import static ch.ethz.sae.IntervalHelper.*;
+
 public class Interval {
-	enum Tristate {
-		ALWAYS_TRUE,
-		PLAUSIBLE,
-		ALWAYS_FALSE
-	};
+
+	public Interval() {
+		lower = 1;
+		upper = 0;
+	}
+	
 	public Interval(int start_value) {
 		lower = upper = start_value;
 	}
@@ -22,62 +28,16 @@ public class Interval {
 		return String.format("[%d,%d]", lower, upper);
 	}
 	
-	public static Interval plus(Interval i1, Interval i2) {
-		if (isPlusOverflow(i1.upper, i2.upper) != isPlusOverflow(i1.lower, i2.lower)) {
-			return new Interval(Integer.MIN_VALUE, Integer.MAX_VALUE);
-		}
-		int x = i1.lower + i2.lower;
-		int y = i1.upper + i2.upper;
-		return new Interval(Math.min(x, y), Math.max(x, y));
-	}
-	
-	public static Interval minus(Interval i) {
-		if (i.lower == Integer.MIN_VALUE && i.upper != Integer.MIN_VALUE) {
-			return new Interval(Integer.MIN_VALUE, Integer.MAX_VALUE);
-		}
-		return new Interval(-i.upper, -i.lower);
-	}
-	
-	public static Interval minus(Interval i1, Interval i2) {
-		if (isMinusOverflow(i1.upper, i2.lower) != isMinusOverflow(i1.lower, i2.upper)) {
-			return new Interval(Integer.MIN_VALUE, Integer.MAX_VALUE);
-		}
-		int x = i1.lower - i2.upper;
-		int y = i1.upper - i2.lower;
-		return new Interval(Math.min(x, y), Math.max(x, y));
-	}
-	
-	public static Interval modulo(Interval i1, Interval i2) {
-		int div = Math.abs(i2.lower);
-		if (i1.size() > div) {
-			return new Interval(0, div-1);
-		}
-		int x = i1.lower%div;
-		int y = (int) ((x+i1.size()-1)%div);
-		if (y < x) {
-			return new Interval(0, div-1);
-		}
-		return new Interval(Math.min(x, y), Math.max(x, y));
-	}
-	
-	public static int isPlusOverflow(int a, int b) {
-		if ((long)a+b > Integer.MAX_VALUE)
-			return 1;
-		if ((long)a+b < Integer.MIN_VALUE)
-			return -1;
-		return 0;
-	}
-	
-	public static int isMinusOverflow(int a, int b) {
-		if ((long)a-b > Integer.MAX_VALUE)
-			return 1;
-		if ((long)a-b < Integer.MIN_VALUE)
-			return -1;
-		return 0;
-	}
-	
 	public long size() {
 		return (long)upper-lower+1;
+	}
+	
+	public boolean contains(Interval a) {
+		return a.isEmpty() || (!isEmpty() && lower <= a.lower && upper >= a.upper);
+	}
+	
+	public boolean contains(int i) {
+		return !isEmpty() && lower <= i && upper >= i; 
 	}
 	
 	@Override
@@ -86,7 +46,171 @@ public class Interval {
 		Interval i = (Interval)o;
 		return lower == i.lower && upper == i.upper;
 	}
+	
+	public boolean isEmpty() {
+		return lower > upper;
+	}
 
 	// TODO: Do you need to handle infinity or empty interval?
 	private final int lower, upper;
+	
+	
+	public static Interval union(Interval a, int i) {
+		if (a.isEmpty()) {
+			return i(i);
+		}
+		return i(min(a.lower, i), max(a.upper, i));
+	}
+
+	public static Interval union(Interval a, Interval b) {
+		if (a.isEmpty()) {
+			return a;
+		}
+		if (b.isEmpty()) {
+			return b;
+		}
+		return i(min(a.lower, b.lower), max(a.upper, b.upper));
+	}
+
+	public static Interval top() {
+		return i(mi, ma);
+	}
+	
+	public static Interval bottom() {
+		return i();
+	}
+
+	private static int getOverflowType(long val) {
+		if (val > ma) {
+			return 1;
+		}
+		if (val < mi) {
+			return -1;
+		}
+		return 0;
+	}
+	
+	// TRANSFORMERS
+	public static Interval plus(Interval i1, Interval i2) {
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (getOverflowType((long)i1.upper+i2.upper) != getOverflowType((long)i1.lower+i2.lower)) {
+			return i(mi, ma);
+		}
+		int x = i1.lower + i2.lower;
+		int y = i1.upper + i2.upper;
+		return i(min(x, y), max(x, y));
+	}
+	
+	public static Interval minus(Interval i) {
+		if (i.isEmpty()) {
+			throw new IllegalArgumentException("interval cannot be empty");
+		}
+		if (i.lower == mi && i.upper != mi) {
+			return i(mi, ma);
+		}
+		return i(-i.upper, -i.lower);
+	}
+	
+	public static Interval minus(Interval i1, Interval i2) {
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (getOverflowType((long)i1.upper-i2.lower) != getOverflowType((long)i1.lower-i2.upper)) {
+			return i(mi, ma);
+		}
+		int x = i1.lower - i2.upper;
+		int y = i1.upper - i2.lower;
+		return i(min(x, y), max(x, y));
+	}
+	
+	public static Interval multiply(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(i1.lower*i2.lower, i1.upper*i2.upper);
+	}
+	
+	public static Interval or(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(0);
+	}
+	
+	public static Interval and(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(0);
+	}
+	
+	public static Interval xor(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(0);
+	}
+	
+	public static Interval shl(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(0);
+	}
+	
+	public static Interval shr(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(0);
+	}
+	
+	public static Interval slr(Interval i1, Interval i2) {
+		// FIXME
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		return i(0);
+	}
+	
+	public static Interval divide(Interval i1, Interval i2) {
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (i2.contains(0)) {
+			return top();
+		}
+		int divs[] = {i1.lower/i2.lower, i1.lower/i2.upper,
+				i1.upper/i2.lower, i1.upper/i2.upper};
+		Arrays.sort(divs);
+		Interval result = i(divs[0], divs[3]); 
+		if (i1.contains(mi) && i2.contains(-1)) {
+			result = union(result, mi);
+		}
+		return result;
+	}
+	
+	public static Interval modulo(Interval i1, Interval i2) {
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		int div = Math.abs(i2.lower);
+		if (i1.size() > div) {
+			return i(0, div-1);
+		}
+		int x = i1.lower%div;
+		int y = (int) ((x+i1.size()-1)%div);
+		if (y < x) {
+			return i(0, div-1);
+		}
+		return i(min(x, y), max(x, y));
+	}
 }
