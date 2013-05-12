@@ -1,11 +1,41 @@
 package ch.ethz.sae;
 
-import java.util.Arrays;
-import static java.lang.Math.min;
+import static ch.ethz.sae.IntervalHelper.i;
+import static ch.ethz.sae.IntervalHelper.ma;
+import static ch.ethz.sae.IntervalHelper.mi;
 import static java.lang.Math.max;
-import static ch.ethz.sae.IntervalHelper.*;
+import static java.lang.Math.min;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.ListIterator;
 
 public class Interval {
+	
+	private static class BinaryInterval {
+		private int base;
+		private int n;
+		
+		private BinaryInterval(int base, int n) {
+			this.base = base;
+			this.n = n;
+		}
+		
+		@Override
+		public String toString() {
+			StringBuilder sb = new StringBuilder();
+			int b = 1<<31;
+			for (int i = 0; i < n; ++i) {
+				sb.append((base&b) != 0 ? '1' : '0');
+				b >>>= 1;
+			}
+			for (int i = 0; i < 32-n; ++i) {
+				sb.append('x');
+			}
+			return sb.toString();
+		}
+	}
 
 	public Interval() {
 		lower = 1;
@@ -93,6 +123,26 @@ public class Interval {
 		return 0;
 	}
 	
+	public List<BinaryInterval> splitIntoBinary() {
+		List<BinaryInterval> result = new ArrayList<BinaryInterval>();
+		int begin = lower;
+		while (begin <= upper) {
+			int base = 1<<31;
+			for (int i = 1; i <= 32; ++i) {
+				int x = ~(base-1)&begin;
+				if (contains(x) && contains(x|(base-1))) {
+					result.add(new BinaryInterval(x, i));
+					if (max(x, x|(base-1)) == Integer.MAX_VALUE)
+						return result;
+					begin = max(x, x|(base-1))+1;
+					break;
+				}
+				base >>>= 1;
+			}
+		}
+		return result;
+	}
+	
 	// TRANSFORMERS
 	public static Interval plus(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
@@ -140,27 +190,89 @@ public class Interval {
 	}
 	
 	public static Interval or(Interval i1, Interval i2) {
-		// FIXME
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		return i(0);
+		Interval result = i();
+		List<BinaryInterval> bi1 = i1.splitIntoBinary();
+		List<BinaryInterval> bi2 = i2.splitIntoBinary();
+		ListIterator<BinaryInterval> it1 = bi1.listIterator();
+		//System.out.println("or "+i1+" , "+i2);
+		//System.out.println(bi1);
+		//System.out.println(bi2);
+		while (it1.hasNext()) {
+			BinaryInterval a = it1.next();
+			int maska = ((1<<(32-a.n))-1);
+			ListIterator<BinaryInterval> it2 = bi2.listIterator();
+			while (it2.hasNext()) {
+				BinaryInterval b = it2.next();
+				int maskb = ((1<<(32-b.n))-1);
+				int x1 = a.base|b.base;
+				int x2 = a.base|b.base;
+				//System.out.printf("\ta.n %d b.n %d\n", a.n, b.n);
+				if (a.n > b.n) {
+					x2 |= maskb;
+				} else {
+					x2 |= maska;
+				}
+				//System.out.printf("\tmaska %x maskb %x x1 %d x2 %d\n", maska, maskb, x1, x2);
+				result = union(result, i(min(x1, x2), max(x1, x2)));
+			}
+		}
+		return result;
 	}
 	
 	public static Interval and(Interval i1, Interval i2) {
-		// FIXME
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		return i(0);
+		Interval result = i();
+		List<BinaryInterval> bi1 = i1.splitIntoBinary();
+		List<BinaryInterval> bi2 = i2.splitIntoBinary();
+		ListIterator<BinaryInterval> it1 = bi1.listIterator();
+		//System.out.println("and "+i1+" , "+i2);
+		while (it1.hasNext()) {
+			BinaryInterval a = it1.next();
+			int maska = ((1<<(32-a.n))-1);
+			ListIterator<BinaryInterval> it2 = bi2.listIterator();
+			while (it2.hasNext()) {
+				BinaryInterval b = it2.next();
+				int maskb = ((1<<(32-b.n))-1);
+				int x1 = (a.base|maska)&(b.base|maskb);
+				int x2 = a.base&b.base;
+				//System.out.printf("\ta.n %d b.n %d\n", a.n, b.n);
+				if (a.n > b.n) {
+					x2 &= ~maskb;
+				} else {
+					x2 &= ~maska;
+				}
+				//System.out.printf("\tmaska %x maskb %x x1 %d x2 %d\n", maska, maskb, x1, x2);
+				result = union(result, i(min(x1, x2), max(x1, x2)));
+			}
+		}
+		return result;
 	}
 	
 	public static Interval xor(Interval i1, Interval i2) {
-		// FIXME
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		return i(0);
+		Interval result = i();
+		List<BinaryInterval> bi1 = i1.splitIntoBinary();
+		List<BinaryInterval> bi2 = i2.splitIntoBinary();
+		ListIterator<BinaryInterval> it1 = bi1.listIterator();
+		while (it1.hasNext()) {
+			BinaryInterval a = it1.next();
+			ListIterator<BinaryInterval> it2 = bi2.listIterator();
+			while (it2.hasNext()) {
+				BinaryInterval b = it2.next();
+				int mn = min(b.n, a.n);
+				int mask = ((1<<(32-mn))-1);
+				int x = (b.base&~mask)^(a.base&~mask);
+				result = union(result, i(min(x|mask, x), max(x|mask, x)));
+			}
+		}
+		return result;
 	}
 	
 	public static Interval shl(Interval i1, Interval i2) {
