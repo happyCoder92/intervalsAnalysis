@@ -387,7 +387,7 @@ public class Interval {
 		if (a.isEmpty() || b.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		if (b.upper == mi || b.upper-1 < a.lower) {
+		if (b.upper <= a.lower) {
 			return i();
 		}
 		return i(a.lower, min(a.upper, b.upper-1));
