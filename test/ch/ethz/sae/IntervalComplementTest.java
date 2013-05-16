@@ -34,7 +34,7 @@ public class IntervalComplementTest extends IntervalBinaryOperationTest {
 				{ i(mi, ma-1), i(mi, ma-1), i() },
 				{ i(mi, ma-1), i(mi, ma), i() },
 				{ i(mi, -2), i(2, ma), i(mi, -2) },
-				{i(mi, ma), i(mi, 4), i(5, ma)},
+				{ i(mi, ma), i(mi, 4), i(5, ma) },
 				{ i(-3, -2), i(2, 3), i(-3, -2) },
 				{ i(-1, 1), i(), i(-1, 1) },
 				{ i(), i(10, 20), i() },

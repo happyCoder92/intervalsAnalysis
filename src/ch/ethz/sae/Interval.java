@@ -1,8 +1,6 @@
 package ch.ethz.sae;
 
-import static ch.ethz.sae.IntervalHelper.i;
-import static ch.ethz.sae.IntervalHelper.ma;
-import static ch.ethz.sae.IntervalHelper.mi;
+import static ch.ethz.sae.IntervalHelper.*;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -14,11 +12,12 @@ import java.util.ListIterator;
 public class Interval {
 
 	private static class BinaryInterval {
-		private int base;
-		private int n;
+		private final int base;
+		private final int n;
 
 		private BinaryInterval(int base, int n) {
-			this.base = base;
+			assert n <= 32 && n >= 0 : n;
+			this.base = n == 32 ? base : base & (~(b(31-n)-1));
 			this.n = n;
 		}
 
@@ -119,7 +118,7 @@ public class Interval {
 		if (a.upper < b.lower || a.lower > b.upper) {
 			return i();
 		}
-		if (a.lower <= b.lower && a.upper <= b.upper && a.upper >= b.lower) {
+		if (a.lower <= b.lower) {
 			return i(b.lower, a.upper);
 		}
 		return i(a.lower, b.upper);
@@ -232,13 +231,16 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		Interval result = i();
+		// System.out.println("or "+i1+" , "+i2);
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
 		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		ListIterator<BinaryInterval> it1 = bi1.listIterator();
-		// System.out.println("or "+i1+" , "+i2);
 		// System.out.println(bi1);
 		// System.out.println(bi2);
+		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
+		assert bi2.size() < 32 && bi2.size() > 0 : bi2;
+		int min = ma;
+		int max = mi;
+		ListIterator<BinaryInterval> it1 = bi1.listIterator();
 		while (it1.hasNext()) {
 			BinaryInterval a = it1.next();
 			int maska = ((1 << (32 - a.n)) - 1);
@@ -254,23 +256,27 @@ public class Interval {
 				} else {
 					x2 |= maska;
 				}
+				min = min(min, min(x1, x2));
+				max = max(max, max(x1, x2));
 				// System.out.printf("\tmaska %x maskb %x x1 %d x2 %d\n", maska,
 				// maskb, x1, x2);
-				result = union(result, i(min(x1, x2), max(x1, x2)));
 			}
 		}
-		return result;
+		return i(min, max);
 	}
 
 	public static Interval and(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		Interval result = i();
+		// System.out.println("and "+i1+" , "+i2);
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
 		List<BinaryInterval> bi2 = i2.splitIntoBinary();
+		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
+		assert bi2.size() < 32 && bi2.size() > 0 : bi2;
+		int min = ma;
+		int max = mi;
 		ListIterator<BinaryInterval> it1 = bi1.listIterator();
-		// System.out.println("and "+i1+" , "+i2);
 		while (it1.hasNext()) {
 			BinaryInterval a = it1.next();
 			int maska = ((1 << (32 - a.n)) - 1);
@@ -280,27 +286,31 @@ public class Interval {
 				int maskb = ((1 << (32 - b.n)) - 1);
 				int x1 = (a.base | maska) & (b.base | maskb);
 				int x2 = a.base & b.base;
-				// System.out.printf("\ta.n %d b.n %d\n", a.n, b.n);
 				if (a.n > b.n) {
 					x2 &= ~maskb;
 				} else {
 					x2 &= ~maska;
 				}
+				min = min(min, min(x1, x2));
+				max = max(max, max(x1, x2));
+				// System.out.printf("\ta.n %d b.n %d\n", a.n, b.n);
 				// System.out.printf("\tmaska %x maskb %x x1 %d x2 %d\n", maska,
 				// maskb, x1, x2);
-				result = union(result, i(min(x1, x2), max(x1, x2)));
 			}
 		}
-		return result;
+		return i(min, max);
 	}
 
 	public static Interval xor(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		Interval result = i();
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
 		List<BinaryInterval> bi2 = i2.splitIntoBinary();
+		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
+		assert bi2.size() < 32 && bi2.size() > 0 : bi2;
+		int min = ma;
+		int max = mi;
 		ListIterator<BinaryInterval> it1 = bi1.listIterator();
 		while (it1.hasNext()) {
 			BinaryInterval a = it1.next();
@@ -310,10 +320,11 @@ public class Interval {
 				int mn = min(b.n, a.n);
 				int mask = ((1 << (32 - mn)) - 1);
 				int x = (b.base & ~mask) ^ (a.base & ~mask);
-				result = union(result, i(min(x | mask, x), max(x | mask, x)));
+				min = min(min, min(x, x | mask));
+				max = max(max, max(x, x | mask));
 			}
 		}
-		return result;
+		return i(min, max);
 	}
 
 	public static Interval shl(Interval i1, Interval i2) {
@@ -325,19 +336,67 @@ public class Interval {
 	}
 
 	public static Interval shr(Interval i1, Interval i2) {
-		// FIXME
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		return i(0);
+		int min = 0;
+		int max = 31;
+		if (i2.size() < 32) {
+			int x = i2.lower % 32;
+			int y = i2.upper % 32;
+			if (x < 0)
+				x += 32;
+			if (y < 0)
+				y += 32;
+			if (x <= y) {
+				min = x;
+				max = y;
+			}
+		}
+		if (i1.lower < 0) {
+			if (i1.upper < 0) {
+				return i(i1.lower >> min, i1.upper >> max);
+			} else {
+				return i(i1.lower >> min, i1.upper >> min);
+			}
+		}
+		return i(i1.lower >> max, i1.upper >> min);
 	}
 
 	public static Interval slr(Interval i1, Interval i2) {
-		// FIXME
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		return i(0);
+		int min = 0;
+		int max = 31;
+		if (i2.size() < 32) {
+			int x = i2.lower % 32;
+			int y = i2.upper % 32;
+			if (x < 0)
+				x += 32;
+			if (y < 0)
+				y += 32;
+			if (x <= y) {
+				min = x;
+				max = y;
+			}
+		}
+		
+		if (max == 0)
+			return i1;
+			
+		if (i1.lower < 0) {
+			if (i1.upper >= 0) {
+				if (min == 0) {
+					return i(i1.lower, ma);
+				} else {
+					return i(0, -1 >>> min);
+				}
+			} else if (min == 0) {
+				return i(i1.lower, i1.upper >>> 1);			
+			}
+		}
+		return i(i1.lower >>> max, i1.upper >>> min);
 	}
 
 	public static Interval divide(Interval i1, Interval i2) {
@@ -352,7 +411,13 @@ public class Interval {
 		Arrays.sort(divs);
 		Interval result = i(divs[0], divs[3]);
 		if (i1.contains(mi) && i2.contains(-1)) {
+			if (i1.contains(mi+1)) {
+				return i(mi, ma);
+			}
 			result = union(result, mi);
+			if (i2.contains(-2)) {
+				result = union(result, mi/-2);
+			}
 		}
 		return result;
 	}
@@ -376,11 +441,11 @@ public class Interval {
 			return i(0, div - 1);
 		}
 		int x = i1.lower % div;
-		int y = (int) ((x + i1.size() - 1) % div);
+		int y = i2.upper % div;
 		if (y < x) {
 			return i(0, div - 1);
 		}
-		return i(min(x, y), max(x, y));
+		return i(x, y);
 	}
 	
 	public static Interval singleLower(Interval a, Interval b) {
