@@ -123,33 +123,22 @@ public class Interval {
 			return i(b.lower, a.upper);
 		}
 		return i(a.lower, b.upper);
-
 	}
 
-	public static Interval difference(Interval a, Interval b) {
+	public static Interval complement(Interval a, Interval b) {
 		if (b.contains(a)) {
 			return i();
 		}
-		if (b.isEmpty()) {
+		if (b.isEmpty() || (a.lower < b.lower && a.upper > b.upper)) {
 			return a;
 		}
 		if (a.upper < b.lower || a.lower > b.upper) {
 			return a;
 		}
-		if (a.contains(b) && a.lower < b.lower && a.upper > b.upper) {
-			return a;
-		}
-		if (a.contains(b) && a.lower == b.lower) {
+		if (b.upper < a.upper) {
 			return i(b.upper+1, a.upper);
-				
 		}
-		if (a.lower <= b.lower && a.upper < b.upper && a.upper >= b.lower) {
-			return i(b.upper + 1, a.upper);
-		}
-		if (a.lower < b.lower && a.upper == b.upper) {
-			return i(a.lower, b.lower - 1);
-		}
-		return i();
+		return i(a.lower, b.lower-1);
 	}
 
 	public static Interval top() {
@@ -370,8 +359,14 @@ public class Interval {
 
 	public static Interval modulo(Interval i1, Interval i2) {
 		// FIXME unsound & imprecise
+		System.out.println("modulo "+i1+", "+i2);
+		System.out.println("\t(1,-1): "+(i1.lower/i2.upper)+"\t(1,1): "+(i1.upper/i2.upper));
+		System.out.println("\t(-1,-1): "+(i1.lower/i2.lower)+"\t(1,-1): "+(i1.upper/i2.lower));
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (i2.contains(0)) {
+			return top();
 		}
 		if (i2.size() > 1) {
 			return top();
@@ -386,5 +381,15 @@ public class Interval {
 			return i(0, div - 1);
 		}
 		return i(min(x, y), max(x, y));
+	}
+	
+	public static Interval singleLower(Interval a, Interval b) {
+		if (a.isEmpty() || b.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (b.upper == mi || b.upper-1 < a.lower) {
+			return i();
+		}
+		return i(a.lower, min(a.upper, b.upper-1));
 	}
 }
