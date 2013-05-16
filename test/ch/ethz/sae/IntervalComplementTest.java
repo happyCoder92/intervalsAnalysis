@@ -11,9 +11,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class IntervalDifferenceTest extends IntervalBinaryOperationTest {
+public class IntervalComplementTest extends IntervalBinaryOperationTest {
 
-	public IntervalDifferenceTest(Interval a, Interval b, Interval expected) {
+	public IntervalComplementTest(Interval a, Interval b, Interval expected) {
 		super(a, b, expected, true, false);
 	}
 
@@ -43,7 +43,7 @@ public class IntervalDifferenceTest extends IntervalBinaryOperationTest {
 	}
 	@Override
 	protected Interval operation(Interval a, Interval b) {
-		return Interval.difference(a, b);
+		return Interval.complement(a, b);
 	}
 
 	

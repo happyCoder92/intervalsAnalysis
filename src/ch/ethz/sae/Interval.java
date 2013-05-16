@@ -126,7 +126,7 @@ public class Interval {
 
 	}
 
-	public static Interval difference(Interval a, Interval b) {
+	public static Interval complement(Interval a, Interval b) {
 		if (b.contains(a)) {
 			return i();
 		}
@@ -386,5 +386,15 @@ public class Interval {
 			return i(0, div - 1);
 		}
 		return i(min(x, y), max(x, y));
+	}
+	
+	public static Interval singleLower(Interval a, Interval b) {
+		if (a.isEmpty() || b.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (b.upper == mi || b.upper-1 < a.lower) {
+			return i();
+		}
+		return i(a.lower, min(a.upper, b.upper-1));
 	}
 }
