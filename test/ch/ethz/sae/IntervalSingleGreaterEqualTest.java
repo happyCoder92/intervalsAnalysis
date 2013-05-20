@@ -30,7 +30,7 @@ public class IntervalSingleGreaterEqualTest extends IntervalBinaryOperationTest 
 				{ i(mi, 0), i(ma), i() }, // . .
 				{ i(0, ma), i(mi), i(0, ma) }, // . .
 				{ i(mi, 0), i(mi), i(mi, 0) }, // . .
-				{ i(mi, ma), i(mi), i(mi, 0) }, // . .
+				{ i(mi, ma), i(mi), i(mi, ma) }, // . .
 				{ i(mi, ma), i(ma), i(ma) },
 				{ i(0, 10), i(10, 20), i(10) }, // ranges
 				{ i(10, 20), i(0, 10), i(10, 20) }, // .

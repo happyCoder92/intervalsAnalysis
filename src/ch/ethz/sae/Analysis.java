@@ -1,7 +1,15 @@
 package ch.ethz.sae;
 
-import java.util.List;
+import static ch.ethz.sae.IntervalHelper.i;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import soot.SootMethod;
 import soot.Unit;
 import soot.Value;
 import soot.jimple.AddExpr;
@@ -34,14 +42,24 @@ import soot.jimple.internal.JInstanceFieldRef;
 import soot.jimple.internal.JInvokeStmt;
 import soot.jimple.internal.JStaticInvokeExpr;
 import soot.jimple.internal.JimpleLocal;
+import soot.jimple.toolkits.annotation.logic.Loop;
+import soot.toolkits.graph.LoopNestTree;
 import soot.toolkits.graph.UnitGraph;
 import soot.toolkits.scalar.ForwardBranchedFlowAnalysis;
-import static ch.ethz.sae.IntervalHelper.*;
 
 // Implement your numerical analysis here.
 public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	public Analysis(UnitGraph g) {
 		super(g);
+		method = g.getBody().getMethod();
+		safe = true;
+		LoopNestTree loopTree = new LoopNestTree(g.getBody());
+		loopsExecs = new HashMap<Unit, Integer>();
+		loopsBacksToFront = new HashMap<Unit, Unit>();
+		for (Loop loop : loopTree) {
+			loopsBacksToFront.put(loop.getBackJumpStmt(), loop.getHead());
+			loopsExecs.put(loop.getHead(), 0);
+		}
 		// System.out.println(g.toString());
 	}
 
@@ -62,12 +80,25 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		// op.getClass().getName() + "\n      state: " + current);
 
 		Stmt s = (Stmt) op;
-		IntervalPerVar fallState = new IntervalPerVar();
+		this.current = current;
+		fallState = new IntervalPerVar();
 		fallState.copyFrom(current);
-		IntervalPerVar branchState = new IntervalPerVar();
+		branchState = new IntervalPerVar();
 		branchState.copyFrom(current);
-
-		if (s instanceof DefinitionStmt) {
+		
+		if (loopsBacksToFront.containsKey(op)) {
+			Unit front = loopsBacksToFront.get(op);
+			loopsExecs.put(front, loopsExecs.get(front)+1);
+		}
+		
+		if (current.isBottom()) {
+			debug.println("State is bottom at: "+s);
+			fallState = IntervalPerVar.bottom();
+			branchState = IntervalPerVar.bottom();
+		}
+		else if (s instanceof DefinitionStmt) {
+			// handles also AssignStmt and IdentityStmt
+			debug.println("Definition stmt: "+s);
 			DefinitionStmt sd = (DefinitionStmt) s;
 			Value left = sd.getLeftOp();
 			Value right = sd.getRightOp();
@@ -87,86 +118,15 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 
 			else if (left instanceof JimpleLocal) {
 				String varName = ((JimpleLocal) left).getName();
-
-				if (right instanceof IntConstant) {
-					IntConstant c = ((IntConstant) right);
-					fallState.putIntervalForVar(varName, new Interval(c.value,
-							c.value));
-				} else if (right instanceof JimpleLocal) {
-					JimpleLocal l = ((JimpleLocal) right);
-					fallState.putIntervalForVar(varName,
-							current.getIntervalForVar(l.getName()));
-				} else if (right instanceof BinopExpr) {
-					Value r1 = ((BinopExpr) right).getOp1();
-					Value r2 = ((BinopExpr) right).getOp2();
-
-					Interval i1 = tryGetIntervalForValue(current, r1);
-					Interval i2 = tryGetIntervalForValue(current, r2);
-
-					if (i1 != null && i2 != null) {
-						// Implement transformers.
-						if (right instanceof AddExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.plus(i1, i2));
-						} else if (right instanceof SubExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.minus(i1, i2));
-						} else if (right instanceof MulExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.multiply(i1, i2));
-						} else if (right instanceof DivExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.divide(i1, i2));
-						} else if (right instanceof AndExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.and(i1, i2));
-						} else if (right instanceof OrExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.or(i1, i2));
-						} else if (right instanceof XorExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.xor(i1, i2));
-						} else if (right instanceof ShlExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.shl(i1, i2));
-						} else if (right instanceof ShrExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.shr(i1, i2));
-						} else if (right instanceof UshrExpr) {
-							fallState.putIntervalForVar(varName,
-									Interval.slr(i1, i2));
-						} else {
-							fallState
-									.putIntervalForVar(varName, Interval.top());
-						}
-
-					} else if (right instanceof StaticInvokeExpr) {
-						if (((StaticInvokeExpr) right).getMethod().getName()
-								.equals("readSensor")) {
-							if (((StaticInvokeExpr) right).getMethod()
-									.getDeclaringClass().getName()
-									.equals("AircraftControl")) {
-
-								fallState.putIntervalForVar(varName,
-										i(-999, 999));
-							}
-						} else {
-							fallState
-									.putIntervalForVar(varName, Interval.top());
-						}
-					}
-				} else if (left instanceof StaticFieldRef) {
+				localDefinition(varName, right);
+			} else if (left instanceof StaticFieldRef) {
 					// TODO do we need it?
-				} else if (left instanceof JStaticInvokeExpr) {
+			} else if (left instanceof JStaticInvokeExpr) {
 					// TODO do we need it?
-				}
-
-				// ...
 			}
-			// ...
 		} else if (s instanceof JInvokeStmt) {
 			// A method is called. e.g. AircraftControl.adjustValue
-
+			debug.println("Invoke stmt: "+s);
 			// You need to check the parameters here.
 			InvokeExpr expr = s.getInvokeExpr();
 			if (expr.getMethod().getName().equals("adjustValue")) {
@@ -174,180 +134,32 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				// class.
 				if (expr.getMethod().getDeclaringClass().getName()
 						.equals("AircraftControl")) {
+					Interval a = tryGetIntervalForValue(current, expr.getArg(0));
+					Interval b = tryGetIntervalForValue(current, expr.getArg(1));
+					if (!i(0, 15).contains(a)) {
+						safe = false;
+					}
+					if (!i(-999, 999).contains(b)) {
+						safe = false;
+					}
 					// TODO: Check that the values are in the allowed range (we do
 					// this while computing fixpoint).
 					// System.out.println(expr.getArg(0) + " " + expr.getArg(1));
-				}
-
-				
+				}	
 			}
 		} else if (s instanceof IfStmt) {
-			IfStmt si = (IfStmt) s;
-			Value condition = si.getCondition();
-			if (condition instanceof EqExpr) {
-				handleConditon((ConditionExpr) condition, new ConditionStrategy() {
-
-					@Override
-					protected Interval transformFirst(Interval a, Interval b) {
-						return Interval.intersect(a, b);
-					}
-
-					@Override
-					protected Interval transformFirstNeg(Interval a, Interval b) {
-						if (b.size()<2) {
-							return Interval.minus(a,b);
-						} 
-						return a;
-					}
-
-					@Override
-					protected Interval transformSecond(Interval a, Interval b) {
-						return Interval.intersect(a, b);
-					}
-
-					@Override
-					protected Interval transformSecondNeg(Interval a, Interval b) {
-						if (a.size()<2) {
-							return Interval.minus(b,a);
-						} 
-						return b;
-					}
-					
-				}, current, fallState, branchState);
-			} else if (condition instanceof GeExpr) {
-				handleConditon((ConditionExpr) condition, new ConditionStrategy() {
-
-					@Override
-					protected Interval transformFirst(Interval a, Interval b) {
-						return Interval.singleGreaterEqual(a,b);
-					}
-
-					@Override
-					protected Interval transformFirstNeg(Interval a, Interval b) {
-						return Interval.singleLower(a,b);
-					}
-
-					@Override
-					protected Interval transformSecond(Interval a, Interval b) {
-						return Interval.singleLowerEqual(b,a);
-					}
-
-					@Override
-					protected Interval transformSecondNeg(Interval a, Interval b) {
-						return Interval.singleGreater(b,a);
-					}
-					
-				}, current, fallState, branchState);
-				
-			} else if (condition instanceof GtExpr) {
-				handleConditon((ConditionExpr) condition, new ConditionStrategy() {
-
-					@Override
-					protected Interval transformFirst(Interval a, Interval b) {
-						return Interval.singleGreater(a,b);
-					}
-
-					@Override
-					protected Interval transformFirstNeg(Interval a, Interval b) {
-						return Interval.singleLowerEqual(a,b);
-					}
-
-					@Override
-					protected Interval transformSecond(Interval a, Interval b) {
-						return Interval.singleLower(b,a);
-					}
-
-					@Override
-					protected Interval transformSecondNeg(Interval a, Interval b) {
-						return Interval.singleGreaterEqual(b,a);
-					}
-					
-				}, current, fallState, branchState);
-				
-				
-			} else if (condition instanceof LeExpr) {
-				handleConditon((ConditionExpr) condition, new ConditionStrategy() {
-
-					@Override
-					protected Interval transformFirst(Interval a, Interval b) {
-						return Interval.singleLowerEqual(a,b);
-					}
-
-					@Override
-					protected Interval transformFirstNeg(Interval a, Interval b) {
-						return Interval.singleGreater(a,b);
-					}
-
-					@Override
-					protected Interval transformSecond(Interval a, Interval b) {
-						return Interval.singleGreaterEqual(b,a);
-					}
-
-					@Override
-					protected Interval transformSecondNeg(Interval a, Interval b) {
-						return Interval.singleLower(b,a);
-					}
-					
-				}, current, fallState, branchState);
-				
-			} else if (condition instanceof LtExpr) {
-				handleConditon((ConditionExpr) condition, new ConditionStrategy() {
-
-					@Override
-					protected Interval transformFirst(Interval a, Interval b) {
-						return Interval.singleLower(a,b);
-					}
-
-					@Override
-					protected Interval transformFirstNeg(Interval a, Interval b) {
-						return Interval.singleGreaterEqual(a,b);
-					}
-
-					@Override
-					protected Interval transformSecond(Interval a, Interval b) {
-						return Interval.singleGreater(b,a);
-					}
-
-					@Override
-					protected Interval transformSecondNeg(Interval a, Interval b) {
-						return Interval.singleLowerEqual(b,a);
-					}
-					
-				}, current, fallState, branchState);
-				
-			} else if (condition instanceof NeExpr) {
-				handleConditon((ConditionExpr) condition, new ConditionStrategy() {
-
-					@Override
-					protected Interval transformFirst(Interval a, Interval b) {
-						if (b.size()<2) {
-							return Interval.minus(a,b);
-						} 
-						return a;
-					}
-
-					@Override
-					protected Interval transformFirstNeg(Interval a, Interval b) {
-						return Interval.intersect(a, b);
-					}
-
-					@Override
-					protected Interval transformSecond(Interval a, Interval b) {
-						if (a.size()<2) {
-							return Interval.minus(b,a);
-						} 
-						return b;
-					}
-
-					@Override
-					protected Interval transformSecondNeg(Interval a, Interval b) {
-						return Interval.intersect(a, b);
-					}
-					
-				}, current, fallState, branchState);
-				
-			}
+			debug.println("If stmt: "+s);
+			ifStatement((IfStmt)s);				
+		} else {
+			// NopStmt, GotoStmt, TableSwitchStmt, LookupSwitchStmt
+			// ReturnStmt (need to handle?), ReturnVoidStmt, EnterMonitorStmt,
+			// ExitMonitorStmt, ThrowStmt, RetStmt
+			debug.println("Unhandled stmt: "+s);
 		}
+		
+		debug.println("\tCurrent:"+current);
+		debug.println("\tFall:"+fallState);
+		debug.println("\tBranch:"+branchState);
 
 		// TODO: Maybe avoid copying objects too much. Feel free to optimize.
 		for (IntervalPerVar fnext : fallOut) {
@@ -369,9 +181,188 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		protected abstract Interval transformSecondNeg(Interval a, Interval b);
 	}
 	
-	private void handleConditon(ConditionExpr ce, ConditionStrategy strategy, IntervalPerVar current, IntervalPerVar fallState, IntervalPerVar branchState) {
+	private void localDefinition(String varName, Value right) {
+		if (right instanceof IntConstant) {
+			IntConstant c = ((IntConstant) right);
+			fallState.putIntervalForVar(varName, new Interval(c.value,
+					c.value));
+		} else if (right instanceof JimpleLocal) {
+			JimpleLocal l = ((JimpleLocal) right);
+			fallState.putIntervalForVar(varName,
+					current.getIntervalForVar(l.getName()));
+		} else if (right instanceof BinopExpr) {
+			fallState.putIntervalForVar(varName, binaryExpr((BinopExpr)right));
+		} else if (right instanceof StaticInvokeExpr) {
+			if (((StaticInvokeExpr) right).getMethod().getName().equals("readSensor")) {
+				// check param
+				if (((StaticInvokeExpr) right).getMethod().getDeclaringClass().getName().equals("AircraftControl")) {
+					Interval a = tryGetIntervalForValue(current, ((StaticInvokeExpr) right).getArg(0));
+					if (!i(0, 15).contains(a)) {
+						safe = false;
+					}
+					fallState.putIntervalForVar(varName, i(-999, 999));
+				} else {
+					fallState.putIntervalForVar(varName, Interval.top());
+				}
+			} else {
+				fallState.putIntervalForVar(varName, Interval.top());
+			}
+		} else {
+			fallState.putIntervalForVar(varName, Interval.top());
+		}
+	}
+	
+	private Interval binaryExpr(BinopExpr expr) {
+		Value r1 = expr.getOp1();
+		Value r2 = expr.getOp2();
+
+		Interval i1 = tryGetIntervalForValue(current, r1);
+		Interval i2 = tryGetIntervalForValue(current, r2);
+
+		if (i1 != null && i2 != null) {
+			// Implement transformers.
+			if (expr instanceof AddExpr) {
+				return Interval.plus(i1, i2);
+			} else if (expr instanceof SubExpr) {
+				return Interval.minus(i1, i2);
+			} else if (expr instanceof MulExpr) {
+				return Interval.multiply(i1, i2);
+			} else if (expr instanceof DivExpr) {
+				return Interval.divide(i1, i2);
+			} else if (expr instanceof AndExpr) {
+				return Interval.and(i1, i2);
+			} else if (expr instanceof OrExpr) {
+				return Interval.or(i1, i2);
+			} else if (expr instanceof XorExpr) {
+				return Interval.xor(i1, i2);
+			} else if (expr instanceof ShlExpr) {
+				return Interval.shl(i1, i2);
+			} else if (expr instanceof ShrExpr) {
+				return Interval.shr(i1, i2);
+			} else if (expr instanceof UshrExpr) {
+				return Interval.slr(i1, i2);
+			}
+		}
+		return Interval.top();
+	}
+		
+	private void ifStatement(IfStmt si) {
+		Value condition = si.getCondition();
+		if (condition instanceof EqExpr) {
+			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
+				protected Interval transformFirst(Interval a, Interval b) {
+					return Interval.intersect(a, b);
+				}
+				protected Interval transformFirstNeg(Interval a, Interval b) {
+					if (b.size()<2) {
+						return Interval.minus(a,b);
+					} 
+					return a;
+				}
+				protected Interval transformSecond(Interval a, Interval b) {
+					return Interval.intersect(a, b);
+				}
+				protected Interval transformSecondNeg(Interval a, Interval b) {
+					if (a.size()<2) {
+						return Interval.minus(b,a);
+					} 
+					return b;
+				}
+			});
+		} else if (condition instanceof GeExpr) {
+			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
+				protected Interval transformFirst(Interval a, Interval b) {
+					return Interval.singleGreaterEqual(a,b);
+				}
+				protected Interval transformFirstNeg(Interval a, Interval b) {
+					return Interval.singleLower(a,b);
+				}
+				protected Interval transformSecond(Interval a, Interval b) {
+					return Interval.singleLowerEqual(b,a);
+				}
+				protected Interval transformSecondNeg(Interval a, Interval b) {
+					return Interval.singleGreater(b,a);
+				}
+			});
+		} else if (condition instanceof GtExpr) {
+			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
+				protected Interval transformFirst(Interval a, Interval b) {
+					return Interval.singleGreater(a,b);
+				}
+				protected Interval transformFirstNeg(Interval a, Interval b) {
+					return Interval.singleLowerEqual(a,b);
+				}
+				protected Interval transformSecond(Interval a, Interval b) {
+					return Interval.singleLower(b,a);
+				}
+				protected Interval transformSecondNeg(Interval a, Interval b) {
+					return Interval.singleGreaterEqual(b,a);
+				}
+				
+			});
+		} else if (condition instanceof LeExpr) {
+			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
+				protected Interval transformFirst(Interval a, Interval b) {
+					return Interval.singleLowerEqual(a,b);
+				}
+				protected Interval transformFirstNeg(Interval a, Interval b) {
+					return Interval.singleGreater(a,b);
+				}
+				protected Interval transformSecond(Interval a, Interval b) {
+					return Interval.singleGreaterEqual(b,a);
+				}
+				protected Interval transformSecondNeg(Interval a, Interval b) {
+					return Interval.singleLower(b,a);
+				}
+			});
+			
+		} else if (condition instanceof LtExpr) {
+			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
+				protected Interval transformFirst(Interval a, Interval b) {
+					return Interval.singleLower(a,b);
+				}
+				protected Interval transformFirstNeg(Interval a, Interval b) {
+					return Interval.singleGreaterEqual(a,b);
+				}
+				protected Interval transformSecond(Interval a, Interval b) {
+					return Interval.singleGreater(b,a);
+				}
+				protected Interval transformSecondNeg(Interval a, Interval b) {
+					return Interval.singleLowerEqual(b,a);
+				}
+			});
+		} else if (condition instanceof NeExpr) {
+			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
+				protected Interval transformFirst(Interval a, Interval b) {
+					if (b.size()<2) {
+						return Interval.minus(a,b);
+					} 
+					return a;
+				}
+				protected Interval transformFirstNeg(Interval a, Interval b) {
+					return Interval.intersect(a, b);
+				}
+				protected Interval transformSecond(Interval a, Interval b) {
+					if (a.size()<2) {
+						return Interval.minus(b,a);
+					} 
+					return b;
+				}
+				protected Interval transformSecondNeg(Interval a, Interval b) {
+					return Interval.intersect(a, b);
+				}	
+			});
+		}
+	}
+	
+	private void handleConditon(ConditionExpr ce, ConditionStrategy strategy) {
 		Value left = ce.getOp1();
 		Value right = ce.getOp2();
+		
+		debug.println("\thandle condition");
+		debug.println("\t\tCondition: "+ce);
+		debug.println("\t\tLeft: "+left);
+		debug.println("\t\tRight: "+right);
 		
 		Interval i1 = tryGetIntervalForValue(current, left);
 		Interval i2 = tryGetIntervalForValue(current, right);
@@ -395,17 +386,33 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				Interval l1 = strategy.transformSecond(i1, i2);
 				Interval l2 = strategy.transformSecondNeg(i1, i2);
 				if (l1.isBottom()) {
-					fallState.copyFrom(new IntervalPerVar());
+					branchState.copyFrom(IntervalPerVar.bottom());
 				} else {
-					fallState.putIntervalForVar(varName, r1);
+					branchState.putIntervalForVar(varName, r1);
 				}
 				if (l2.isBottom()) {
-					branchState.copyFrom(new IntervalPerVar());
+					fallState.copyFrom(IntervalPerVar.bottom());
 				} else {
-					branchState.putIntervalForVar(varName, r2);
+					fallState.putIntervalForVar(varName, r2);
 				}
 			} else if (right instanceof JimpleLocal) {
-				//TODO pair function
+				String varName2 = ((JimpleLocal) right).getName();
+				Interval r1 = strategy.transformFirst(i1, i2);
+				Interval r2 = strategy.transformFirstNeg(i1, i2);
+				Interval l1 = strategy.transformSecond(i1, i2);
+				Interval l2 = strategy.transformSecondNeg(i1, i2);
+				if (l1.isBottom()) {
+					branchState.copyFrom(IntervalPerVar.bottom());
+				} else {
+					branchState.putIntervalForVar(varName, r1);
+					branchState.putIntervalForVar(varName2, l1);
+				}
+				if (l2.isBottom()) {
+					fallState.copyFrom(IntervalPerVar.bottom());
+				} else {
+					fallState.putIntervalForVar(varName, r2);
+					fallState.putIntervalForVar(varName2, l2);
+				}
 			} else if (right instanceof BinopExpr || right instanceof StaticInvokeExpr) {
 				unhandled("5: Exprs in conditionals");
 			}
@@ -438,12 +445,34 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		// TODO: How do you model the entry point?
 		return new IntervalPerVar();
 	}
-
+	
 	@Override
 	protected void merge(IntervalPerVar src1, IntervalPerVar src2,
 			IntervalPerVar trg) {
-		// TODO: Fix this:
-		trg.copyFrom(src1);
+		// TODO: Fix this: 
+		debug.println("Merge simple:");
+		debug.println("\ta: "+src1);
+		debug.println("\tb: "+src2);
+		trg.merge(src1, src2);
+		debug.println("\ttrg: "+trg);
+		// System.out.printf("Merge:\n    %s\n    %s\n    ============\n    %s\n",
+		// src1.toString(), src2.toString(), trg.toString());
+	}
+
+	@Override
+	protected void merge(Unit succ, IntervalPerVar src1, IntervalPerVar src2,
+			IntervalPerVar trg) {
+		// TODO: Fix this: 
+		debug.println("Merge:" + succ);
+		debug.println("\ta: "+src1);
+		debug.println("\tb: "+src2);
+		if (loopsExecs.containsKey(succ)) {
+			if (loopsExecs.get(succ) > 5) {
+				trg.widen(src1, src2);
+				return;
+			}
+		}
+		trg.merge(src1, src2);
 		// System.out.printf("Merge:\n    %s\n    %s\n    ============\n    %s\n",
 		// src1.toString(), src2.toString(), trg.toString());
 	}
@@ -454,6 +483,20 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	}
 
 	public boolean provedMethodSafe() {
-		return false; // TODO: Return the result of your analysis.
+		return safe;
 	}
+	
+	private final SootMethod method;
+	private boolean safe;
+	private IntervalPerVar current;
+	private IntervalPerVar fallState;
+	private IntervalPerVar branchState;
+	private Map<Unit, Integer> loopsExecs;
+	private Map<Unit, Unit> loopsBacksToFront;
+	private static PrintStream debug = System.out;
+	/*private static PrintStream debug = new PrintStream(new OutputStream() {
+		@Override
+		public void write(int b) throws IOException {
+		}
+	});*/
 }

@@ -17,15 +17,14 @@ public class IntervalModuloTest extends IntervalBinaryOperationTest {
 
 	@Parameterized.Parameters
 	public static Collection<Interval[]> intervals() {
-		System.err.println(10%-3);
 		return Arrays.asList(new Interval[][] {
-				{ i(10, 10), i(5, 5), i(0, 0) }, // point cases
-				{ i(10, 10), i(-5, -5), i(0, 0) }, // point cases
-				{ i(10, 10), i(3, 3), i(1, 1) }, // .
-				{ i(10, 10), i(-3, -3), i(1, 1) }, // .
-				{ i(8, 10), i(3, 3), i(0, 2) }, // range-point cases
-				{ i(7, 10), i(3, 3), i(0, 2) }, // .
-				{ i(6, 10), i(3, 3), i(0, 2) }, // .
+				{ i(10), i(5), i(0) }, // point cases
+				{ i(10), i(-5), i(0) }, // point cases
+				{ i(10), i(3), i(1) }, // .
+				{ i(10), i(-3), i(1) }, // .
+				{ i(8, 10), i(3), i(0, 2) }, // range-point cases
+				{ i(7, 10), i(3), i(0, 2) }, // .
+				{ i(6, 10), i(3), i(0, 2) }, // .
 				{ i(100, 120), i(54, 100), i() },
 				//{ i(-2, 2), i(3, 3), i(-2, 2) }, // .
 				//{ i(10, 10), i(1, 5), i(0, 2) }, // point-range cases

@@ -84,6 +84,14 @@ public class Interval {
 	public boolean isEmpty() {
 		return lower > upper;
 	}
+	
+	public boolean isBottom() {
+		return isEmpty();
+	}
+	
+	public boolean isTop() {
+		return lower == mi && upper == ma;
+	}
 
 	// TODO: Do you need to handle infinity or empty interval?
 	private final int lower, upper;
@@ -220,8 +228,8 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		if (getOverflowType(i1.lower * i2.lower) != 0
-				|| getOverflowType(i1.upper * i2.upper) != 0) {
+		if (getOverflowType((long)i1.lower * i2.lower) != 0
+				|| getOverflowType((long)i1.upper * i2.upper) != 0) {
 			return top();
 		}
 		return i(i1.lower * i2.lower, i1.upper * i2.upper);
@@ -328,11 +336,44 @@ public class Interval {
 	}
 
 	public static Interval shl(Interval i1, Interval i2) {
-		// FIXME
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		return i(0);
+		int minS = 0;
+		int maxS = 31;
+		if (i2.size() < 32) {
+			int x = i2.lower % 32;
+			int y = i2.upper % 32;
+			if (x < 0)
+				x += 32;
+			if (y < 0)
+				y += 32;
+			if (x <= y) {
+				minS = x;
+				maxS = y;
+			}
+		}
+		List<BinaryInterval> bi1 = i1.splitIntoBinary();
+		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
+		int min = ma;
+		int max = mi;
+		ListIterator<BinaryInterval> it1 = bi1.listIterator();
+		while (it1.hasNext()) {
+			BinaryInterval a = it1.next();
+			int mask = ((1 << (32 - a.n)) - 1);
+			int ones = a.base|mask;
+			for (int i = minS; i <= maxS; ++i) {
+				int x = a.base<<i;
+				int y = ones<<i;
+				min = min(min, min(x, y));
+				max = max(max, max(x, y));
+				if (a.n <= i) {
+					min = min(min, min(x^0x80000000, y^0x80000000));
+					max = max(max, max(x^0x80000000, y^0x80000000));
+				}
+			}
+		}
+		return i(min, max);
 	}
 
 	public static Interval shr(Interval i1, Interval i2) {
@@ -456,5 +497,47 @@ public class Interval {
 			return i();
 		}
 		return i(a.lower, min(a.upper, b.upper-1));
+	}
+	
+	public static Interval singleGreater(Interval a, Interval b) {
+		if (a.isEmpty() || b.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (b.lower >= a.upper) {
+			return i();
+		}
+		return i(max(a.lower, b.lower+1), a.upper);
+	}
+	
+	public static Interval singleLowerEqual(Interval a, Interval b) {
+		if (a.isEmpty() || b.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (b.upper < a.lower) {
+			return i();
+		}
+		return i(a.lower, min(a.upper, b.upper));
+	}
+	
+	public static Interval singleGreaterEqual(Interval a, Interval b) {
+		if (a.isEmpty() || b.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (b.lower > a.upper) {
+			return i();
+		}
+		return i(max(a.lower, b.lower), a.upper);
+	}
+
+	public static Interval widen(Interval a, Interval b) {
+		int l = a.lower;
+		int u = a.upper;
+		if (b.lower < a.lower) {
+			l = mi;
+		}
+		if (b.upper > a.upper) {
+			u = ma;
+		}
+		return i(l, u);
 	}
 }

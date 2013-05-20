@@ -22,8 +22,8 @@ public class IntervalUnaryMinusTest extends IntervalBasicOperationTest<Void, Int
 		return Arrays.asList(new Interval[][] {
 				{ i(10, 10), i(-10, -10) },
 				{ i(-10, 20), i(-20, 10) },
-				{ i(mi, mi), i(mi, mi) },
-				{ i(ma, ma), i(mi+1, mi+1) },
+				{ i(mi), i(mi) },
+				{ i(ma), i(mi+1) },
 				{ i(mi, mi+1), i(mi, ma) },
 				});
 	}
