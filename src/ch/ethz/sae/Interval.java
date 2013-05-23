@@ -230,6 +230,18 @@ public class Interval {
 		}
 		if (getOverflowType((long)i1.lower * i2.lower) != 0
 				|| getOverflowType((long)i1.upper * i2.upper) != 0) {
+			if (i1.size()*i2.size() < 1000) {
+				int min = ma;
+				int max = mi;
+				for (long i = i1.lower; i <= i1.upper; ++i) {
+					for (long j = i2.lower; j <= i2.upper; ++j) {
+						int result = (int)i*(int)j;
+						min = min(min, result);
+						max = max(max, result);
+					}
+				}
+				return i(min, max);
+			}
 			return top();
 		}
 		return i(i1.lower * i2.lower, i1.upper * i2.upper);
@@ -475,9 +487,10 @@ public class Interval {
 			return top();
 		}
 		if (i2.size() > 1) {
+			// TODO too imprecise
 			return top();
 		}
-		int div = Math.abs(i2.lower);
+		int div = i2.lower;
 		if (i1.size() > div) {
 			return i(0, div - 1);
 		}
@@ -530,6 +543,12 @@ public class Interval {
 	}
 
 	public static Interval widen(Interval a, Interval b) {
+		if (a.isBottom()) {
+			return b;
+		}
+		if (b.isBottom()) {
+			return a;
+		}
 		int l = a.lower;
 		int u = a.upper;
 		if (b.lower < a.lower) {

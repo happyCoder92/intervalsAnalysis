@@ -20,6 +20,7 @@ import soot.jimple.DefinitionStmt;
 import soot.jimple.DivExpr;
 import soot.jimple.EqExpr;
 import soot.jimple.GeExpr;
+import soot.jimple.GotoStmt;
 import soot.jimple.GtExpr;
 import soot.jimple.IfStmt;
 import soot.jimple.IntConstant;
@@ -57,6 +58,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		loopsExecs = new HashMap<Unit, Integer>();
 		loopsBacksToFront = new HashMap<Unit, Unit>();
 		for (Loop loop : loopTree) {
+			debug.println("\tbegin: "+loop.getHead());
+			debug.println("\tend: "+loop.getBackJumpStmt());
 			loopsBacksToFront.put(loop.getBackJumpStmt(), loop.getHead());
 			loopsExecs.put(loop.getHead(), 0);
 		}
@@ -149,9 +152,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			}
 		} else if (s instanceof IfStmt) {
 			debug.println("If stmt: "+s);
-			ifStatement((IfStmt)s);				
-		} else {
-			// NopStmt, GotoStmt, TableSwitchStmt, LookupSwitchStmt
+			ifStatement((IfStmt)s);		
+		} else if (s instanceof GotoStmt) {
+			fallState.copyFrom(IntervalPerVar.bottom());
+		}
+		else {
+			// NopStmt, TableSwitchStmt, LookupSwitchStmt
 			// ReturnStmt (need to handle?), ReturnVoidStmt, EnterMonitorStmt,
 			// ExitMonitorStmt, ThrowStmt, RetStmt
 			debug.println("Unhandled stmt: "+s);
@@ -459,23 +465,25 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		// src1.toString(), src2.toString(), trg.toString());
 	}
 
-	@Override
+	/*@Override
 	protected void merge(Unit succ, IntervalPerVar src1, IntervalPerVar src2,
 			IntervalPerVar trg) {
-		// TODO: Fix this: 
+		// TODO: Fix this:
 		debug.println("Merge:" + succ);
 		debug.println("\ta: "+src1);
 		debug.println("\tb: "+src2);
 		if (loopsExecs.containsKey(succ)) {
 			if (loopsExecs.get(succ) > 5) {
+				//System.exit(0);
 				trg.widen(src1, src2);
 				return;
 			}
 		}
 		trg.merge(src1, src2);
+		debug.println("\ttrg: "+trg);
 		// System.out.printf("Merge:\n    %s\n    %s\n    ============\n    %s\n",
 		// src1.toString(), src2.toString(), trg.toString());
-	}
+	}*/
 
 	@Override
 	protected IntervalPerVar newInitialFlow() {
@@ -493,10 +501,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	private IntervalPerVar branchState;
 	private Map<Unit, Integer> loopsExecs;
 	private Map<Unit, Unit> loopsBacksToFront;
-	private static PrintStream debug = System.out;
-	/*private static PrintStream debug = new PrintStream(new OutputStream() {
+	private static PrintStream debugPrt = System.out;
+	private static PrintStream debugNoPrt = new PrintStream(new OutputStream() {
 		@Override
 		public void write(int b) throws IOException {
 		}
-	});*/
+	});
+	private static PrintStream debug = debugPrt;
 }

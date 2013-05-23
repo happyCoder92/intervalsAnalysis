@@ -45,9 +45,32 @@ public class IntervalPerVar {
 				values.put(entry.getKey(), entry.getValue());
 			}
 		}
+		for (Map.Entry<String, Interval> entry : b.values.entrySet()) {
+			if (!values.containsKey(entry.getKey())) {
+				values.put(entry.getKey(), entry.getValue());
+			}
+		}
 		bottom = a.bottom && b.bottom;
 	}
 	
+	public void mergeInto(IntervalPerVar src) {
+		if (src.isBottom()) {
+			return;
+		}
+		if (isBottom()) {
+			copyFrom(src);
+			return;
+		}
+		
+		for (Map.Entry<String, Interval> entry : src.values.entrySet()) {
+			if (values.containsKey(entry.getKey())) {
+				values.put(entry.getKey(), Interval.union(entry.getValue(), values.get(entry.getKey())));
+			} else {
+				values.put(entry.getKey(), entry.getValue());
+			}
+		}
+	}
+
 	public void widen(IntervalPerVar a, IntervalPerVar b) {
 		values.clear();
 		for (Map.Entry<String, Interval> entry : a.values.entrySet()) {
@@ -57,7 +80,35 @@ public class IntervalPerVar {
 				values.put(entry.getKey(), entry.getValue());
 			}
 		}
+		for (Map.Entry<String, Interval> entry : b.values.entrySet()) {
+			if (!values.containsKey(entry.getKey())) {
+				values.put(entry.getKey(), entry.getValue());
+			}
+		}
+		System.err.println("widened:\n\t"+a+"\n\t"+b+"\n\t"+this);
+		System.exit(1);
 		bottom = a.bottom && b.bottom;
+	}
+	
+	public void widenInto(IntervalPerVar src) {
+		if (src.isBottom()) {
+			return;
+		}
+		if (isBottom()) {
+			copyFrom(src);
+			return;
+		}
+		
+		System.err.print("widenedInto:\n\t"+this);
+		for (Map.Entry<String, Interval> entry : src.values.entrySet()) {
+			if (values.containsKey(entry.getKey())) {
+				values.put(entry.getKey(), Interval.union(entry.getValue(), values.get(entry.getKey())));
+			} else {
+				values.put(entry.getKey(), entry.getValue());
+			}
+		}
+		System.err.println("\n\t"+src+"\n\t"+this);
+		System.exit(1);
 	}
 	
 	void putIntervalForVar(String var, Interval i) {
