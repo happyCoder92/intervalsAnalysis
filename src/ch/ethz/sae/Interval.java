@@ -94,7 +94,8 @@ public class Interval {
 	}
 
 	// TODO: Do you need to handle infinity or empty interval?
-	private final int lower, upper;
+	final int lower;
+	final int upper;
 
 	public static Interval union(Interval a, int i) {
 		if (a.isEmpty()) {
@@ -195,9 +196,7 @@ public class Interval {
 				+ i2.lower)) {
 			return i(mi, ma);
 		}
-		int x = i1.lower + i2.lower;
-		int y = i1.upper + i2.upper;
-		return i(min(x, y), max(x, y));
+		return i(i1.lower + i2.lower, i1.upper + i2.upper);
 	}
 
 	public static Interval minus(Interval i) {
@@ -218,9 +217,41 @@ public class Interval {
 				- i2.upper)) {
 			return i(mi, ma);
 		}
-		int x = i1.lower - i2.upper;
-		int y = i1.upper - i2.lower;
-		return i(min(x, y), max(x, y));
+		return i(i1.lower - i2.upper, i1.upper - i2.lower);
+	}
+
+	public static Interval divide(Interval i1, Interval i2) {
+		if (i1.isEmpty() || i2.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (i2.contains(0)) {
+			return top();
+		}
+		if (i1.lower == mi && i2.upper == -1) {
+			if (i1.upper >= mi+1) {
+				return i(mi, ma);
+			}
+			if (i2.lower <= -2) {
+				return i(mi, mi/-2);
+			}
+			return i(mi);
+		}
+		if (i2.lower < 0) {
+			if (i1.upper < 0) {
+				return i(i1.upper/i2.lower, i1.lower/i2.upper);
+			}
+			if (i1.lower >= 0) {
+				return i(i1.upper/i2.upper, i1.lower/i2.lower);
+			}
+			return i(i1.upper/i2.upper, i1.lower/i2.upper);
+		}
+		if (i1.upper <= 0) {
+			return i(i1.lower/i2.lower, i1.upper/i2.upper);
+		}
+		if (i1.lower >= 0) {
+			return i(i1.lower/i2.upper, i1.upper/i2.lower);
+		}
+		return i(i1.lower/i2.lower, i1.upper/i2.lower);
 	}
 
 	public static Interval multiply(Interval i1, Interval i2) {
@@ -251,13 +282,8 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		// System.out.println("or "+i1+" , "+i2);
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
 		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		// System.out.println(bi1);
-		// System.out.println(bi2);
-		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
-		assert bi2.size() < 32 && bi2.size() > 0 : bi2;
 		int min = ma;
 		int max = mi;
 		ListIterator<BinaryInterval> it1 = bi1.listIterator();
@@ -270,7 +296,6 @@ public class Interval {
 				int maskb = ((1 << (32 - b.n)) - 1);
 				int x1 = a.base | b.base;
 				int x2 = a.base | b.base;
-				// System.out.printf("\ta.n %d b.n %d\n", a.n, b.n);
 				if (a.n > b.n) {
 					x2 |= maskb;
 				} else {
@@ -278,8 +303,6 @@ public class Interval {
 				}
 				min = min(min, min(x1, x2));
 				max = max(max, max(x1, x2));
-				// System.out.printf("\tmaska %x maskb %x x1 %d x2 %d\n", maska,
-				// maskb, x1, x2);
 			}
 		}
 		return i(min, max);
@@ -289,11 +312,8 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		// System.out.println("and "+i1+" , "+i2);
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
 		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
-		assert bi2.size() < 32 && bi2.size() > 0 : bi2;
 		int min = ma;
 		int max = mi;
 		ListIterator<BinaryInterval> it1 = bi1.listIterator();
@@ -313,9 +333,6 @@ public class Interval {
 				}
 				min = min(min, min(x1, x2));
 				max = max(max, max(x1, x2));
-				// System.out.printf("\ta.n %d b.n %d\n", a.n, b.n);
-				// System.out.printf("\tmaska %x maskb %x x1 %d x2 %d\n", maska,
-				// maskb, x1, x2);
 			}
 		}
 		return i(min, max);
@@ -327,8 +344,6 @@ public class Interval {
 		}
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
 		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
-		assert bi2.size() < 32 && bi2.size() > 0 : bi2;
 		int min = ma;
 		int max = mi;
 		ListIterator<BinaryInterval> it1 = bi1.listIterator();
@@ -346,27 +361,37 @@ public class Interval {
 		}
 		return i(min, max);
 	}
+	
+	private static List<Interval> shiftIntervals(Interval i) {
+		if (i.size() >= 32) {
+			return Arrays.asList(i(0, 31));
+		}
+		int x = i.lower % 32;
+		int y = i.upper % 32;
+		if (x < 0)
+			x += 32;
+		if (y < 0)
+			y += 32;
+		if (x <= y) {
+			return Arrays.asList(i(x, y));
+		}
+		return Arrays.asList(i(0, y), i(x, 31));
+	}
+	
+	private static Interval shiftInterval(Interval i) {
+		Interval result = i();
+		for (Interval si : shiftIntervals(i)) {
+			result = union(result, si);
+		}
+		return result;
+	}
 
 	public static Interval shl(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		int minS = 0;
-		int maxS = 31;
-		if (i2.size() < 32) {
-			int x = i2.lower % 32;
-			int y = i2.upper % 32;
-			if (x < 0)
-				x += 32;
-			if (y < 0)
-				y += 32;
-			if (x <= y) {
-				minS = x;
-				maxS = y;
-			}
-		}
+		List<Interval> si = shiftIntervals(i2);
 		List<BinaryInterval> bi1 = i1.splitIntoBinary();
-		assert bi1.size() < 32 && bi1.size() > 0 : bi1;
 		int min = ma;
 		int max = mi;
 		ListIterator<BinaryInterval> it1 = bi1.listIterator();
@@ -374,14 +399,16 @@ public class Interval {
 			BinaryInterval a = it1.next();
 			int mask = ((1 << (32 - a.n)) - 1);
 			int ones = a.base|mask;
-			for (int i = minS; i <= maxS; ++i) {
-				int x = a.base<<i;
-				int y = ones<<i;
-				min = min(min, min(x, y));
-				max = max(max, max(x, y));
-				if (a.n <= i) {
-					min = min(min, min(x^0x80000000, y^0x80000000));
-					max = max(max, max(x^0x80000000, y^0x80000000));
+			for (Interval sint : si) {
+				for (int i = sint.lower; i <= sint.upper; ++i) {
+					int x = a.base<<i;
+					int y = ones<<i;
+					min = min(min, min(x, y));
+					max = max(max, max(x, y));
+					if (a.n <= i) {
+						min = min(min, min(x^0x80000000, y^0x80000000));
+						max = max(max, max(x^0x80000000, y^0x80000000));
+					}
 				}
 			}
 		}
@@ -392,114 +419,102 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		int min = 0;
-		int max = 31;
-		if (i2.size() < 32) {
-			int x = i2.lower % 32;
-			int y = i2.upper % 32;
-			if (x < 0)
-				x += 32;
-			if (y < 0)
-				y += 32;
-			if (x <= y) {
-				min = x;
-				max = y;
-			}
+		Interval si = shiftInterval(i2);
+		if (i1.lower >= 0) {
+			return i(i1.lower>>si.upper, i1.upper>>si.lower);
 		}
-		if (i1.lower < 0) {
-			if (i1.upper < 0) {
-				return i(i1.lower >> min, i1.upper >> max);
-			} else {
-				return i(i1.lower >> min, i1.upper >> min);
-			}
+		if (i1.upper <= 0) {
+			return i(i1.lower>>si.lower, i1.upper>>si.upper);
 		}
-		return i(i1.lower >> max, i1.upper >> min);
+		return i(i1.lower>>si.lower, i1.upper>>si.lower);
 	}
 
 	public static Interval slr(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		int min = 0;
-		int max = 31;
-		if (i2.size() < 32) {
-			int x = i2.lower % 32;
-			int y = i2.upper % 32;
-			if (x < 0)
-				x += 32;
-			if (y < 0)
-				y += 32;
-			if (x <= y) {
-				min = x;
-				max = y;
-			}
+		List<Interval> sis = shiftIntervals(i2);
+		Interval si = shiftInterval(i2);
+		int lgtz = 31;
+		for (Interval i : sis) {
+			lgtz = min(lgtz, max(i.lower, 1));
 		}
 		
-		if (max == 0)
+		if (si.upper == 0) {
 			return i1;
-			
-		if (i1.lower < 0) {
-			if (i1.upper >= 0) {
-				if (min == 0) {
-					return i(i1.lower, ma);
-				} else {
-					return i(0, -1 >>> min);
-				}
-			} else if (min == 0) {
-				return i(i1.lower, i1.upper >>> 1);			
+		}
+		if (i1.lower >= 0) {
+			return i(i1.lower>>>si.upper, i1.upper>>>si.lower);
+		}
+		if (i1.upper < 0) {
+			if (si.lower == 0) {
+				return i(i1.lower, i1.upper>>>lgtz);
 			}
+			return i(i1.lower>>>si.upper, i1.upper>>>si.lower);
 		}
-		return i(i1.lower >>> max, i1.upper >>> min);
-	}
-
-	public static Interval divide(Interval i1, Interval i2) {
-		if (i1.isEmpty() || i2.isEmpty()) {
-			throw new IllegalArgumentException("intervals cannot be empty");
+		if (si.lower == 0) {
+			return i(i1.lower, -1>>>lgtz);
 		}
-		if (i2.contains(0)) {
-			return top();
-		}
-		int divs[] = { i1.lower / i2.lower, i1.lower / i2.upper,
-				i1.upper / i2.lower, i1.upper / i2.upper };
-		Arrays.sort(divs);
-		Interval result = i(divs[0], divs[3]);
-		if (i1.contains(mi) && i2.contains(-1)) {
-			if (i1.contains(mi+1)) {
-				return i(mi, ma);
-			}
-			result = union(result, mi);
-			if (i2.contains(-2)) {
-				result = union(result, mi/-2);
-			}
-		}
-		return result;
+		return i(0, -1>>>lgtz);
 	}
 
 	public static Interval modulo(Interval i1, Interval i2) {
-		// FIXME unsound & imprecise
-		System.out.println("modulo "+i1+", "+i2);
-		System.out.println("\t(1,-1): "+(i1.lower/i2.upper)+"\t(1,1): "+(i1.upper/i2.upper));
-		System.out.println("\t(-1,-1): "+(i1.lower/i2.lower)+"\t(1,-1): "+(i1.upper/i2.lower));
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
 		if (i2.contains(0)) {
 			return top();
 		}
-		if (i2.size() > 1) {
-			// TODO too imprecise
-			return top();
+		LongInterval div = new LongInterval(i2.lower, i2.upper);
+		if (i2.lower < 0) {
+			div.upper = -(long)i2.lower;
+			div.lower = -(long)i2.upper;
 		}
-		int div = i2.lower;
-		if (i1.size() > div) {
-			return i(0, div - 1);
+		System.out.println("modulo "+i1+", "+i2);
+		if (i1.lower < 0) {
+			if (i1.upper > 0) {
+				LongInterval r1 = modulo(new LongInterval(0, -(long)i1.lower), div);
+				LongInterval r2 = modulo(new LongInterval(0, i1.upper), div);
+				return i((int)-r1.upper, (int)r2.upper);
+			}
+			LongInterval result = modulo(new LongInterval(-(long)i1.upper, -(long)i1.lower), div);
+			return i((int)-result.upper, (int)-result.lower);
+		} else {
+			LongInterval result = modulo(new LongInterval(i1.lower, i1.upper), div);
+			return i((int)result.lower, (int)result.upper);
 		}
-		int x = i1.lower % div;
-		int y = i2.upper % div;
-		if (y < x) {
-			return i(0, div - 1);
+		
+	}
+	
+	private static class LongInterval {
+		long lower;
+		long upper;
+		
+		LongInterval(long lower, long upper) {
+			this.lower = lower;
+			this.upper = upper;
 		}
-		return i(x, y);
+	}
+	
+	private static LongInterval modulo(LongInterval i1, LongInterval i2) {
+		long tl = i1.lower / i2.upper;
+		long tr = i1.upper / i2.upper;
+		long bl = i1.lower / i2.lower;
+		long br = i1.upper / i2.lower;
+		long m = ma;
+		long x = 0;
+		long y_rb = i1.upper / (tr + 1) + 1;
+		if (tl != tr) {
+			m = 0;
+			x = i2.upper - 1;
+		} else if (bl == br && bl == tl) {
+			m = i1.lower % i2.upper;
+			x = i1.upper % i2.lower;
+		} else {
+			m = 0;
+			x = y_rb - 2;
+		}
+		return new LongInterval(m, x);
 	}
 	
 	public static Interval singleLower(Interval a, Interval b) {

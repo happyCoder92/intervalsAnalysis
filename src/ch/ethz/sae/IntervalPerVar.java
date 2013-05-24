@@ -2,6 +2,8 @@ package ch.ethz.sae;
 import java.util.HashMap;
 import java.util.Map;
 
+import soot.Unit;
+
 public class IntervalPerVar {
 	private IntervalPerVar(boolean bottom) {
 		this.bottom = bottom;
@@ -34,6 +36,7 @@ public class IntervalPerVar {
 			values.put(entry.getKey(), entry.getValue());
 		}
 		bottom = other.bottom;
+		widenAt = other.widenAt;
 	}
 	
 	public void merge(IntervalPerVar a, IntervalPerVar b) {
@@ -51,24 +54,7 @@ public class IntervalPerVar {
 			}
 		}
 		bottom = a.bottom && b.bottom;
-	}
-	
-	public void mergeInto(IntervalPerVar src) {
-		if (src.isBottom()) {
-			return;
-		}
-		if (isBottom()) {
-			copyFrom(src);
-			return;
-		}
-		
-		for (Map.Entry<String, Interval> entry : src.values.entrySet()) {
-			if (values.containsKey(entry.getKey())) {
-				values.put(entry.getKey(), Interval.union(entry.getValue(), values.get(entry.getKey())));
-			} else {
-				values.put(entry.getKey(), entry.getValue());
-			}
-		}
+		widenAt = null;
 	}
 
 	public void widen(IntervalPerVar a, IntervalPerVar b) {
@@ -85,32 +71,10 @@ public class IntervalPerVar {
 				values.put(entry.getKey(), entry.getValue());
 			}
 		}
-		System.err.println("widened:\n\t"+a+"\n\t"+b+"\n\t"+this);
-		System.exit(1);
 		bottom = a.bottom && b.bottom;
+		widenAt = null;
 	}
-	
-	public void widenInto(IntervalPerVar src) {
-		if (src.isBottom()) {
-			return;
-		}
-		if (isBottom()) {
-			copyFrom(src);
-			return;
-		}
-		
-		System.err.print("widenedInto:\n\t"+this);
-		for (Map.Entry<String, Interval> entry : src.values.entrySet()) {
-			if (values.containsKey(entry.getKey())) {
-				values.put(entry.getKey(), Interval.union(entry.getValue(), values.get(entry.getKey())));
-			} else {
-				values.put(entry.getKey(), entry.getValue());
-			}
-		}
-		System.err.println("\n\t"+src+"\n\t"+this);
-		System.exit(1);
-	}
-	
+
 	void putIntervalForVar(String var, Interval i) {
 		values.put(var, i);
 	}
@@ -143,6 +107,15 @@ public class IntervalPerVar {
 		return new IntervalPerVar(true);
 	}
 	
+	public void markWiden(Unit unit) {
+		widenAt = unit;
+	}
+
+	public boolean isWidenMarkedAt(Unit unit) {
+		return widenAt == unit;
+	}
+
 	private HashMap<String, Interval> values;
 	private boolean bottom;
+	private Unit widenAt;
 }

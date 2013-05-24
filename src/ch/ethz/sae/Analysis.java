@@ -26,16 +26,21 @@ import soot.jimple.IfStmt;
 import soot.jimple.IntConstant;
 import soot.jimple.InvokeExpr;
 import soot.jimple.LeExpr;
+import soot.jimple.LookupSwitchStmt;
 import soot.jimple.LtExpr;
 import soot.jimple.MulExpr;
 import soot.jimple.NeExpr;
+import soot.jimple.NopStmt;
 import soot.jimple.OrExpr;
+import soot.jimple.ReturnStmt;
+import soot.jimple.ReturnVoidStmt;
 import soot.jimple.ShlExpr;
 import soot.jimple.ShrExpr;
 import soot.jimple.StaticFieldRef;
 import soot.jimple.StaticInvokeExpr;
 import soot.jimple.Stmt;
 import soot.jimple.SubExpr;
+import soot.jimple.TableSwitchStmt;
 import soot.jimple.UshrExpr;
 import soot.jimple.XorExpr;
 import soot.jimple.internal.JArrayRef;
@@ -56,14 +61,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		safe = true;
 		LoopNestTree loopTree = new LoopNestTree(g.getBody());
 		loopsExecs = new HashMap<Unit, Integer>();
-		loopsBacksToFront = new HashMap<Unit, Unit>();
+		loopsBackToHead = new HashMap<Unit, Unit>();
 		for (Loop loop : loopTree) {
-			debug.println("\tbegin: "+loop.getHead());
-			debug.println("\tend: "+loop.getBackJumpStmt());
-			loopsBacksToFront.put(loop.getBackJumpStmt(), loop.getHead());
-			loopsExecs.put(loop.getHead(), 0);
+			loopsExecs.put(loop.getBackJumpStmt(), 0);
+			loopsBackToHead.put(loop.getBackJumpStmt(), loop.getHead());
 		}
-		// System.out.println(g.toString());
 	}
 
 	void run() {
@@ -76,8 +78,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	}
 
 	@Override
-	protected void flowThrough(IntervalPerVar current, Unit op,
-			List<IntervalPerVar> fallOut, List<IntervalPerVar> branchOuts) {
+	protected void flowThrough(IntervalPerVar current, Unit op, List<IntervalPerVar> fallOut, List<IntervalPerVar> branchOuts) {
 		// TODO: This can be optimized.
 		// System.out.println("Operation: " + op + "   - " +
 		// op.getClass().getName() + "\n      state: " + current);
@@ -89,24 +90,17 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		branchState = new IntervalPerVar();
 		branchState.copyFrom(current);
 		
-		if (loopsBacksToFront.containsKey(op)) {
-			Unit front = loopsBacksToFront.get(op);
-			loopsExecs.put(front, loopsExecs.get(front)+1);
-		}
-		
 		if (current.isBottom()) {
-			debug.println("State is bottom at: "+s);
+			//debug.println("State is bottom at: "+s);
 			fallState = IntervalPerVar.bottom();
 			branchState = IntervalPerVar.bottom();
 		}
 		else if (s instanceof DefinitionStmt) {
 			// handles also AssignStmt and IdentityStmt
-			debug.println("Definition stmt: "+s);
+			//debug.println("Definition stmt: "+s);
 			DefinitionStmt sd = (DefinitionStmt) s;
 			Value left = sd.getLeftOp();
 			Value right = sd.getRightOp();
-			// System.out.println(left.getClass().getName() + " " +
-			// right.getClass().getName());
 
 			// You do not need to handle these cases:
 			if ((!(left instanceof StaticFieldRef))
@@ -122,19 +116,13 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			else if (left instanceof JimpleLocal) {
 				String varName = ((JimpleLocal) left).getName();
 				localDefinition(varName, right);
-			} else if (left instanceof StaticFieldRef) {
-					// TODO do we need it?
-			} else if (left instanceof JStaticInvokeExpr) {
-					// TODO do we need it?
 			}
 		} else if (s instanceof JInvokeStmt) {
 			// A method is called. e.g. AircraftControl.adjustValue
-			debug.println("Invoke stmt: "+s);
+			//debug.println("Invoke stmt: "+s);
 			// You need to check the parameters here.
 			InvokeExpr expr = s.getInvokeExpr();
 			if (expr.getMethod().getName().equals("adjustValue")) {
-				// TODO: Check that is the method from the AircraftControl
-				// class.
 				if (expr.getMethod().getDeclaringClass().getName()
 						.equals("AircraftControl")) {
 					Interval a = tryGetIntervalForValue(current, expr.getArg(0));
@@ -145,27 +133,42 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 					if (!i(-999, 999).contains(b)) {
 						safe = false;
 					}
-					// TODO: Check that the values are in the allowed range (we do
-					// this while computing fixpoint).
-					// System.out.println(expr.getArg(0) + " " + expr.getArg(1));
 				}	
 			}
 		} else if (s instanceof IfStmt) {
-			debug.println("If stmt: "+s);
+			//debug.println("If stmt: "+s);
 			ifStatement((IfStmt)s);		
 		} else if (s instanceof GotoStmt) {
+			//debug.println("Goto stmt: "+s);
 			fallState.copyFrom(IntervalPerVar.bottom());
-		}
-		else {
-			// NopStmt, TableSwitchStmt, LookupSwitchStmt
-			// ReturnStmt (need to handle?), ReturnVoidStmt, EnterMonitorStmt,
-			// ExitMonitorStmt, ThrowStmt, RetStmt
-			debug.println("Unhandled stmt: "+s);
+		} else if (s instanceof ReturnStmt || s instanceof ReturnVoidStmt) {
+			//debug.println("Return stmt: "+s);
+			fallState.copyFrom(IntervalPerVar.bottom());
+			branchState.copyFrom(IntervalPerVar.bottom());
+		} else if (s instanceof TableSwitchStmt || s instanceof LookupSwitchStmt) {
+			unhandled("4: Switch is not handled");
+		} else if (!(s instanceof NopStmt)) {
+			// EnterMonitorStmt, ExitMonitorStmt,
+			// ThrowStmt, RetStmt
+			unhandled("5: Some unhandled statement of type: " +s.getClass().getCanonicalName());
+		} else {
+			// NopStmt
+			//debug.println("Nop stmt: "+s);
 		}
 		
-		debug.println("\tCurrent:"+current);
-		debug.println("\tFall:"+fallState);
-		debug.println("\tBranch:"+branchState);
+		
+		if (loopsExecs.containsKey(op)) {
+			int execs = loopsExecs.get(op);
+			if (execs >= 5) {
+				fallState.markWiden(loopsBackToHead.get(op));
+				branchState.markWiden(loopsBackToHead.get(op));
+			}
+			loopsExecs.put(op, execs+1);
+		}
+		
+		//debug.println("\tCurrent:"+current);
+		//debug.println("\tFall:"+fallState);
+		//debug.println("\tBranch:"+branchState);
 
 		// TODO: Maybe avoid copying objects too much. Feel free to optimize.
 		for (IntervalPerVar fnext : fallOut) {
@@ -199,10 +202,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		} else if (right instanceof BinopExpr) {
 			fallState.putIntervalForVar(varName, binaryExpr((BinopExpr)right));
 		} else if (right instanceof StaticInvokeExpr) {
-			if (((StaticInvokeExpr) right).getMethod().getName().equals("readSensor")) {
+			StaticInvokeExpr invoke = (StaticInvokeExpr) right;
+			if (invoke.getMethod().getName().equals("readSensor")) {
 				// check param
-				if (((StaticInvokeExpr) right).getMethod().getDeclaringClass().getName().equals("AircraftControl")) {
-					Interval a = tryGetIntervalForValue(current, ((StaticInvokeExpr) right).getArg(0));
+				if (invoke.getMethod().getDeclaringClass().getName().equals("AircraftControl")) {
+					Interval a = tryGetIntervalForValue(current, invoke.getArg(0));
 					if (!i(0, 15).contains(a)) {
 						safe = false;
 					}
@@ -226,7 +230,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		Interval i2 = tryGetIntervalForValue(current, r2);
 
 		if (i1 != null && i2 != null) {
-			// Implement transformers.
 			if (expr instanceof AddExpr) {
 				return Interval.plus(i1, i2);
 			} else if (expr instanceof SubExpr) {
@@ -365,10 +368,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		Value left = ce.getOp1();
 		Value right = ce.getOp2();
 		
-		debug.println("\thandle condition");
-		debug.println("\t\tCondition: "+ce);
-		debug.println("\t\tLeft: "+left);
-		debug.println("\t\tRight: "+right);
+		//debug.println("\thandle condition");
+		//debug.println("\t\tCondition: "+ce);
+		//debug.println("\t\tLeft: "+left);
+		//debug.println("\t\tRight: "+right);
 		
 		Interval i1 = tryGetIntervalForValue(current, left);
 		Interval i2 = tryGetIntervalForValue(current, right);
@@ -424,7 +427,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			}
 
 		} else if (left instanceof StaticFieldRef) {
-				// TODO do we need it?
+			// TODO do we need it?
 		} else if (left instanceof JStaticInvokeExpr) {
 			// TODO do we need it?
 		}
@@ -448,42 +451,30 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 
 	@Override
 	protected IntervalPerVar entryInitialFlow() {
-		// TODO: How do you model the entry point?
 		return new IntervalPerVar();
 	}
 	
 	@Override
 	protected void merge(IntervalPerVar src1, IntervalPerVar src2,
 			IntervalPerVar trg) {
-		// TODO: Fix this: 
-		debug.println("Merge simple:");
-		debug.println("\ta: "+src1);
-		debug.println("\tb: "+src2);
-		trg.merge(src1, src2);
-		debug.println("\ttrg: "+trg);
-		// System.out.printf("Merge:\n    %s\n    %s\n    ============\n    %s\n",
-		// src1.toString(), src2.toString(), trg.toString());
+		unhandled("6: Soots 3-params merge");
 	}
 
-	/*@Override
+	@Override
 	protected void merge(Unit succ, IntervalPerVar src1, IntervalPerVar src2,
 			IntervalPerVar trg) {
-		// TODO: Fix this:
-		debug.println("Merge:" + succ);
-		debug.println("\ta: "+src1);
-		debug.println("\tb: "+src2);
-		if (loopsExecs.containsKey(succ)) {
-			if (loopsExecs.get(succ) > 5) {
-				//System.exit(0);
-				trg.widen(src1, src2);
-				return;
-			}
+		//debug.println("Merge:" + succ);
+		//debug.println("\ta: "+src1);
+		//debug.println("\tb: "+src2);
+		if (src1.isWidenMarkedAt(succ)) {
+			trg.widen(src2, src1);
+		} else if (src2.isWidenMarkedAt(succ)) {
+			trg.widen(src1, src2);
+		} else {
+			trg.merge(src1, src2);
 		}
-		trg.merge(src1, src2);
-		debug.println("\ttrg: "+trg);
-		// System.out.printf("Merge:\n    %s\n    %s\n    ============\n    %s\n",
-		// src1.toString(), src2.toString(), trg.toString());
-	}*/
+		//debug.println("\ttrg: "+trg);
+	}
 
 	@Override
 	protected IntervalPerVar newInitialFlow() {
@@ -500,12 +491,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	private IntervalPerVar fallState;
 	private IntervalPerVar branchState;
 	private Map<Unit, Integer> loopsExecs;
-	private Map<Unit, Unit> loopsBacksToFront;
-	private static PrintStream debugPrt = System.out;
+	private Map<Unit, Unit> loopsBackToHead;
+	/*private static PrintStream debugPrt = System.out;
 	private static PrintStream debugNoPrt = new PrintStream(new OutputStream() {
 		@Override
 		public void write(int b) throws IOException {
 		}
 	});
-	private static PrintStream debug = debugPrt;
+	private static PrintStream debug = debugNoPrt;*/
 }
