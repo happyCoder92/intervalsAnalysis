@@ -17,14 +17,14 @@ public class Interval {
 
 		private BinaryInterval(int base, int n) {
 			assert n <= 32 && n >= 0 : n;
-			this.base = n == 32 ? base : base & (~(b(31-n)-1));
+			this.base = base & (~(b(32-n)-1));
 			this.n = n;
 		}
 
 		@Override
 		public String toString() {
 			StringBuilder sb = new StringBuilder();
-			int b = 1 << 31;
+			int b = 0x80000000;
 			for (int i = 0; i < n; ++i) {
 				sb.append((base & b) != 0 ? '1' : '0');
 				b >>>= 1;
@@ -93,7 +93,6 @@ public class Interval {
 		return lower == mi && upper == ma;
 	}
 
-	// TODO: Do you need to handle infinity or empty interval?
 	final int lower;
 	final int upper;
 
@@ -176,9 +175,9 @@ public class Interval {
 				int x = ~(base - 1) & begin;
 				if (contains(x) && contains(x | (base - 1))) {
 					result.add(new BinaryInterval(x, i));
-					if (max(x, x | (base - 1)) == Integer.MAX_VALUE)
+					if ((x | (base - 1)) == ma)
 						return result;
-					begin = max(x, x | (base - 1)) + 1;
+					begin = (x | (base - 1)) + 1;
 					break;
 				}
 				base >>>= 1;
@@ -255,7 +254,6 @@ public class Interval {
 	}
 
 	public static Interval multiply(Interval i1, Interval i2) {
-		// FIXME imprecise
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
@@ -275,7 +273,23 @@ public class Interval {
 			}
 			return top();
 		}
-		return i(i1.lower * i2.lower, i1.upper * i2.upper);
+		if (i1.lower >= 0) {
+			if (i2.lower >= 0) {
+				return i(i1.lower*i2.lower, i1.upper*i2.upper);
+			}
+			if (i2.upper <= 0) {
+				return i(i1.upper*i2.lower, i1.lower*i2.upper);
+			}
+		}
+		if (i1.upper <= 0) {
+			if (i2.lower >= 0) {
+				return i(i1.lower*i2.upper, i1.upper*i2.lower);
+			}
+			if (i2.upper <= 0) {
+				return i(i1.upper*i2.upper, i1.lower*i2.lower);
+			}
+		}
+		return i(min(i1.lower*i2.upper,i1.upper*i2.lower), max(i1.lower*i2.lower, i1.upper*i2.upper));
 	}
 
 	public static Interval or(Interval i1, Interval i2) {
@@ -470,7 +484,6 @@ public class Interval {
 			div.upper = -(long)i2.lower;
 			div.lower = -(long)i2.upper;
 		}
-		System.out.println("modulo "+i1+", "+i2);
 		if (i1.lower < 0) {
 			if (i1.upper > 0) {
 				LongInterval r1 = modulo(new LongInterval(0, -(long)i1.lower), div);

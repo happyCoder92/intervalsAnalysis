@@ -5,6 +5,7 @@ import java.util.Collection;
 
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
 import static ch.ethz.sae.IntervalHelper.*;
 
 @RunWith(Parameterized.class)
