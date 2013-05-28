@@ -2,6 +2,9 @@ package ch.ethz.sae;
 
 import static ch.ethz.sae.IntervalHelper.i;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,7 @@ import soot.jimple.MulExpr;
 import soot.jimple.NeExpr;
 import soot.jimple.NopStmt;
 import soot.jimple.OrExpr;
+import soot.jimple.RemExpr;
 import soot.jimple.ReturnStmt;
 import soot.jimple.ReturnVoidStmt;
 import soot.jimple.ShlExpr;
@@ -81,6 +85,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		// System.out.println("Operation: " + op + "   - " +
 		// op.getClass().getName() + "\n      state: " + current);
 
+		if (!safe)
+			return;
+		
 		Stmt s = (Stmt) op;
 		this.current = current;
 		fallState = new IntervalPerVar();
@@ -128,6 +135,15 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 						safe = false;
 					}
 					if (!i(-999, 999).contains(b)) {
+						safe = false;
+					}
+				}
+			}
+			else if (expr.getMethod().getName().equals("readSensor")) {
+				if (expr.getMethod().getDeclaringClass().getName()
+						.equals("AircraftControl")) {
+					Interval a = tryGetIntervalForValue(current, expr.getArg(0));
+					if (!i(0, 15).contains(a)) {
 						safe = false;
 					}
 				}
@@ -254,6 +270,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				return Interval.shr(i1, i2);
 			} else if (expr instanceof UshrExpr) {
 				return Interval.slr(i1, i2);
+			} else if (expr instanceof RemExpr) {
+				return Interval.modulo(i1, i2);
 			}
 		}
 		return Interval.top();
@@ -269,7 +287,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 
 				protected Interval transformFirstNeg(Interval a, Interval b) {
 					if (b.size() < 2) {
-						return Interval.minus(a, b);
+						return Interval.complement(a, b);
 					}
 					return a;
 				}
@@ -280,7 +298,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 
 				protected Interval transformSecondNeg(Interval a, Interval b) {
 					if (a.size() < 2) {
-						return Interval.minus(b, a);
+						return Interval.complement(b, a);
 					}
 					return b;
 				}
@@ -363,7 +381,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
 				protected Interval transformFirst(Interval a, Interval b) {
 					if (b.size() < 2) {
-						return Interval.minus(a, b);
+						return Interval.complement(a, b);
 					}
 					return a;
 				}
@@ -374,7 +392,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 
 				protected Interval transformSecond(Interval a, Interval b) {
 					if (a.size() < 2) {
-						return Interval.minus(b, a);
+						return Interval.complement(b, a);
 					}
 					return b;
 				}
@@ -531,11 +549,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	private IntervalPerVar branchState;
 	private Map<Unit, Integer> loopsExecs;
 	private Map<Unit, Unit> loopsBackToHead;
-	/*
-	 * private static PrintStream debugPrt = System.out; private static
-	 * PrintStream debugNoPrt = new PrintStream(new OutputStream() {
-	 * 
-	 * @Override public void write(int b) throws IOException { } }); private
-	 * static PrintStream debug = debugNoPrt;
-	 */
+	/*private static PrintStream debugPrt = System.out;
+	private static PrintStream debugNoPrt = new PrintStream(new OutputStream() {
+	@Override public void write(int b) throws IOException { } });
+	private	static PrintStream debug = debugPrt;*/
 }
