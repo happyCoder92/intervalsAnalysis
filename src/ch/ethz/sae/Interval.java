@@ -259,7 +259,7 @@ public class Interval {
 		}
 		if (getOverflowType((long)i1.lower * i2.lower) != 0
 				|| getOverflowType((long)i1.upper * i2.upper) != 0) {
-			if (i1.size()*i2.size() < 1000) {
+			if (i1.size() < 100 && i2.size() < 100 && i1.size()*i2.size() < 100) {
 				int min = ma;
 				int max = mi;
 				for (long i = i1.lower; i <= i1.upper; ++i) {
@@ -296,29 +296,132 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		List<BinaryInterval> bi1 = i1.splitIntoBinary();
-		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		int min = ma;
-		int max = mi;
-		ListIterator<BinaryInterval> it1 = bi1.listIterator();
-		while (it1.hasNext()) {
-			BinaryInterval a = it1.next();
-			int maska = ((1 << (32 - a.n)) - 1);
-			ListIterator<BinaryInterval> it2 = bi2.listIterator();
-			while (it2.hasNext()) {
-				BinaryInterval b = it2.next();
-				int maskb = ((1 << (32 - b.n)) - 1);
-				int x1 = a.base | b.base;
-				int x2 = a.base | b.base;
-				if (a.n > b.n) {
-					x2 |= maskb;
-				} else {
-					x2 |= maska;
-				}
-				min = min(min, min(x1, x2));
-				max = max(max, max(x1, x2));
-			}
+		int l1 = i1.lower;
+		int l2 = i2.lower;
+		int u1 = i1.upper;
+		int u2 = i2.upper;
+		if (u1 < 0) {
+			Interval r = or(i(l1&ma, u1&ma), i2);
+			return i(r.lower|mi, r.upper|mi);
 		}
+		if (u2 < 0) {
+			Interval r = or(i1, i(l2&ma, u2&ma));
+			return i(r.lower|mi, r.upper|mi);
+		}
+		if (l1 < 0) {
+			if (l2 < 0) {
+				Interval r1 = or(i(l1&ma, ma), i(l2&ma, ma));
+				Interval r2 = or(i(l1&ma, ma), i(0, u2));
+				Interval r3 = or(i(0, u1), i(l2&ma, ma));
+				Interval r4 = or(i(0, u1), i(0, u2));
+				return i(min(r1.lower, min(r2.lower, r3.lower))|mi, r4.upper);
+			}
+			Interval r1 = or(i(l1&ma, ma), i2);
+			Interval r2 = or(i(0, u1), i2);
+			return i(r1.lower|mi, r2.upper);
+		}
+		if (l2 < 0) {
+			Interval r1 = or(i1, i(l2&ma, ma));
+			Interval r2 = or(i1, i(0, u2));
+			return i(r1.lower|mi, r2.upper);
+		}
+		int b = b(30);
+		for (int i = 1; i < 32; ++i, b >>>= 1) {
+			if ((u1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 0 0 0
+					continue; // ?
+				}
+				l1 ^= b;
+				u1 ^= b;
+				if ((l2 & b) != 0) {
+					// 0 0 1 1
+					continue;
+				}
+				// 0 0 0 1
+				l2 = u2&(~(b-1));
+				continue;
+			}
+			if ((l1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 1 0 0
+					l2 ^= b;
+					u2 ^= b;
+					l1 = u1&(~(b-1));
+					continue;
+				}
+				u1 |= b-1;
+				u2 = u1;
+				break;
+			}
+			if ((u2 & b) == 0) {
+				// 1 1 0 0
+				l2 ^= b;
+				u2 ^= b;
+				continue;
+			}
+			if ((l2 & b) != 0) {
+				// 1 1 1 1
+				continue; // ?
+			}
+			// 1 1 0 1
+			u1 |= b-1;
+			u2 = u1;
+			break;
+		}
+		int max = min(u1, u2);
+		b = b(30);
+		l1 = i1.lower;
+		l2 = i2.lower;
+		u1 = i1.upper;
+		u2 = i2.upper;
+		for (int i = 1; i < 32; ++i, b >>>= 1) {
+			if ((u1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 0 0 0
+					continue; // ?
+				}
+				if ((l2 & b) != 0) {
+					// 0 0 1 1
+					l1 ^= b;
+					u1 ^= b;
+					continue;
+				}
+				// 0 0 0 1
+				u2 = l2|(b-1);
+				continue;
+			}
+			if ((l1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 1 0 0
+					u1 = l1|(b-1);
+					continue;
+				}
+				if ((l2 & b) != 0) {
+					// 0 1 1 1
+					l1 = l2;
+					break;
+				}
+				// 0 1 0 1
+				l2 &= (~(b-1));
+				l1 = l2;
+				break;
+			}
+			if ((u2 & b) == 0) {
+				// 1 1 0 0
+				l2 ^= b;
+				u2 ^= b;
+				continue;
+			}
+			if ((l2 & b) != 0) {
+				// 1 1 1 1
+				continue; // ?
+			}
+			// 1 1 0 1
+			l2 = l1;
+			break;
+		}
+		int min = max(l1, l2);
 		return i(min, max);
 	}
 
@@ -326,29 +429,156 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		List<BinaryInterval> bi1 = i1.splitIntoBinary();
-		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		int min = ma;
-		int max = mi;
-		ListIterator<BinaryInterval> it1 = bi1.listIterator();
-		while (it1.hasNext()) {
-			BinaryInterval a = it1.next();
-			int maska = ((1 << (32 - a.n)) - 1);
-			ListIterator<BinaryInterval> it2 = bi2.listIterator();
-			while (it2.hasNext()) {
-				BinaryInterval b = it2.next();
-				int maskb = ((1 << (32 - b.n)) - 1);
-				int x1 = (a.base | maska) & (b.base | maskb);
-				int x2 = a.base & b.base;
-				if (a.n > b.n) {
-					x2 &= ~maskb;
-				} else {
-					x2 &= ~maska;
+		int l1 = i1.lower;
+		int l2 = i2.lower;
+		int u1 = i1.upper;
+		int u2 = i2.upper;
+		if (l1 < 0) {
+			if (u1 < 0) {
+				if (l2 < 0) {
+					if (u2 < 0) {
+						// neg neg
+						Interval r = and(i(l1&ma, u1&ma), i(l2&ma, u2&ma));
+						return i(r.lower|mi, r.upper|mi);
+					}
+					// neg mix
+					Interval r1 = and(i(l1&ma, u1&ma), i(l2&ma, ma));
+					Interval r2 = and(i(l1&ma, u1&ma), i(0, u2));
+					return i(r1.lower|mi, r2.upper);
 				}
-				min = min(min, min(x1, x2));
-				max = max(max, max(x1, x2));
+				// neg pos
+				return and(i(l1&ma, u1&ma), i2);
 			}
+			if (l2 < 0) {
+				if (u2 < 0) {
+					// mix neg
+					Interval r1 = and(i(l2&ma, u2&ma), i(l1&ma, ma));
+					Interval r2 = and(i(l2&ma, u2&ma), i(0, u1));
+					return i(r1.lower|mi, r2.upper);
+				}
+				// mix mix
+				Interval r1 = and(i(l1&ma, ma), i(l2&ma, ma));
+				Interval r2 = and(i(0, u1), i(0, u2));
+				return i(r1.lower|mi, r2.upper);
+			}
+			// mix pos
+			return i(0, u2);
 		}
+		if (l2 < 0) {
+			if (u2 < 0) {
+				// pos neg
+				return and(i1, i(l2&ma, u2&ma));
+			}
+			// pos mix
+			return i(0, u1);
+		}
+		// pos pos
+		int b = b(30);
+		for (int i = 1; i < 32; ++i, b >>>= 1) {
+			if ((u1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 0 0 0
+					continue; // ?
+				}
+				if ((l2 & b) != 0) {
+					// 0 0 1 1
+					l2 ^= b;
+					u2 ^= b;
+					continue;
+				}
+				// 0 0 0 1
+				u2 = u1;
+				break;
+			}
+			if ((l1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 1 0 0
+					u1 = u2;
+					break;
+				}
+				if ((l2 & b) != 0) {
+					// 0 1 1 1
+					l1 = u1&(~(b-1));
+					continue;
+				}
+				// 0 1 0 1
+				if (u1 < u2) {
+					u2 = u1;
+				}
+				u1 = u2;
+				break;
+			}
+			if ((u2 & b) == 0) {
+				// 1 1 0 0
+				l1 ^= b;
+				u1 ^= b;
+				continue;
+			}
+			if ((l2 & b) != 0) {
+				// 1 1 1 1
+				continue; // ?
+			}
+			// 1 1 0 1
+			l2 = u2&(~(b-1));
+		}
+		int max = min(u1, u2);
+		b = b(30);
+		l1 = i1.lower;
+		l2 = i2.lower;
+		u1 = i1.upper;
+		u2 = i2.upper;
+		for (int i = 1; i < 32; ++i, b >>>= 1) {
+			if ((u1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 0 0 0
+					continue; // ?
+				}
+				if ((l2 & b) != 0) {
+					// 0 0 1 1
+					l2 ^= b;
+					u2 ^= b;
+					continue;
+				}
+				// 0 0 0 1
+				l1 &= (~(b-1));
+				l2 = l1;
+				break;
+			}
+			if ((l1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 1 0 0
+					l2 &= (~(b-1));
+					l1 = l2;
+					break;
+				}
+				if ((l2 & b) != 0) {
+					// 0 1 1 1
+					u1 = l1|(b-1);
+					l2 ^= b;
+					u2 ^= b;
+					continue;
+				}
+				// 0 1 0 1
+				l2 &= (~(b-1));
+				l1 = l2;
+				break;
+			}
+			if ((u2 & b) == 0) {
+				// 1 1 0 0
+				l1 ^= b;
+				u1 ^= b;
+				continue;
+			}
+			if ((l2 & b) != 0) {
+				// 1 1 1 1
+				continue; // ?
+			}
+			// 1 1 0 1
+			u2 = l2|(b-1);
+			l1 ^= b;
+			u1 ^= b;
+		}
+		int min = max(l1, l2);
 		return i(min, max);
 	}
 
@@ -356,23 +586,175 @@ public class Interval {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		List<BinaryInterval> bi1 = i1.splitIntoBinary();
-		List<BinaryInterval> bi2 = i2.splitIntoBinary();
-		int min = ma;
-		int max = mi;
-		ListIterator<BinaryInterval> it1 = bi1.listIterator();
-		while (it1.hasNext()) {
-			BinaryInterval a = it1.next();
-			ListIterator<BinaryInterval> it2 = bi2.listIterator();
-			while (it2.hasNext()) {
-				BinaryInterval b = it2.next();
-				int mn = min(b.n, a.n);
-				int mask = ((1 << (32 - mn)) - 1);
-				int x = (b.base & ~mask) ^ (a.base & ~mask);
-				min = min(min, min(x, x | mask));
-				max = max(max, max(x, x | mask));
+		int l1 = i1.lower;
+		int l2 = i2.lower;
+		int u1 = i1.upper;
+		int u2 = i2.upper;
+		if (l1 < 0) {
+			if (u1 < 0) {
+				if (l2 < 0) {
+					if (u2 < 0) {
+						// neg neg
+						return xor(i(l1&ma, u1&ma), i(l2&ma, u2&ma));
+					}
+					// neg mix
+					Interval r1 = xor(i(l1&ma, u1&ma), i(0, u2));
+					Interval r2 = xor(i(l1&ma, u1&ma), i(l2&ma, ma));
+					return i(r1.lower|mi, r2.upper);
+				}
+				// neg pos
+				Interval r = xor(i(l1&ma, u1&ma), i2);
+				return i(r.lower|mi, r.upper|mi);
 			}
+			if (l2 < 0) {
+				if (u2 < 0) {
+					// mix neg
+					Interval r1 = xor(i(0, u1), i(l2&ma, u2&ma));
+					Interval r2 = xor(i(l1&ma, ma), i(l2&ma, u2&ma));
+					return i(r1.lower|mi, r2.upper);
+				}
+				// mix mix
+				Interval r1 = xor(i(0, u1), i(l2&ma, ma));
+				Interval r2 = xor(i(l1&ma, ma), i(0, u2));
+				Interval r3 = xor(i(0, u1), i(0, u2));
+				Interval r4 = xor(i(l1&ma, ma), i(l2&ma, ma));
+				return i(min(r1.lower|mi, r2.lower|mi), max(r3.upper, r4.upper));
+			}
+			// mix pos
+			Interval r1 = xor(i(l1&ma, ma), i2);
+			Interval r2 = xor(i(0, u1), i2);
+			return i(r1.lower|mi, r2.upper);
 		}
+		if (l2 < 0) {
+			if (u2 < 0) {
+				// pos neg
+				Interval r = xor(i1, i(l2&ma, u2&ma));
+				return i(r.lower|mi, r.upper|mi);
+			}
+			// pos mix
+			Interval r1 = xor(i1, i(l2&ma, ma));
+			Interval r2 = xor(i1, i(0, u2));
+			return i(r1.lower|mi, r2.upper);
+		}
+		// pos pos
+		int b = b(30);
+		for (int i = 1; i < 32; ++i, b >>>= 1) {
+			if ((u1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 0 0 0
+					continue; // ?
+				}
+				l1 ^= b;
+				u1 ^= b;
+				if ((l2 & b) != 0) {
+					// 0 0 1 1
+					continue;
+				}
+				// 0 0 0 1
+				l2 = u2&(~(b-1));
+				continue;
+			}
+			if ((l1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 1 0 0
+					l2 ^= b;
+					u2 ^= b;
+					l1 = u1&(~(b-1));
+					continue;
+				}
+				if ((l2 & b) != 0) {
+					// 0 1 1 1
+					l1 ^= b;
+					u1 = l1|(b-1);
+					continue;
+				}
+				// 0 1 0 1
+				u2 |= (b-1);
+				u1 = u2;
+				break;
+			}
+			if ((u2 & b) == 0) {
+				// 1 1 0 0
+				l2 ^= b;
+				u2 ^= b;
+				continue;
+			}
+			if ((l2 & b) != 0) {
+				// 1 1 1 1
+				l1 ^= b;
+				u1 ^= b;
+				l2 ^= b;
+				u2 ^= b;
+				continue; // ?
+			}
+			// 1 1 0 1
+			l2 ^= b;
+			u2 = l2|(b-1);
+		}
+		int max = min(u1, u2);
+		b = b(30);
+		l1 = i1.lower;
+		l2 = i2.lower;
+		u1 = i1.upper;
+		u2 = i2.upper;
+		for (int i = 1; i < 32; ++i, b >>>= 1) {
+			if ((u1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 0 0 0
+					continue; // ?
+				}
+				if ((l2 & b) != 0) {
+					// 0 0 1 1
+					l1 ^= b;
+					u1 ^= b;
+					continue;
+				}
+				// 0 0 0 1
+				u2 = l2|(b-1);
+				continue;
+			}
+			if ((l1 & b) == 0) {
+				if ((u2 & b) == 0) {
+					// 0 1 0 0
+					u1 = l1|(b-1);
+					continue;
+				}
+				if ((l2 & b) != 0) {
+					// 0 1 1 1
+					l1 = u1&(~(b-1));
+					l1 ^= b;
+					u1 ^= b;
+					l2 ^= b;
+					u2 ^= b;
+					continue;
+				}
+				// 0 1 0 1
+				l2 &= (~(b-1));
+				l1 = l2;
+				break;
+			}
+			if ((u2 & b) == 0) {
+				// 1 1 0 0
+				l2 ^= b;
+				u2 ^= b;
+				continue;
+			}
+			if ((l2 & b) != 0) {
+				// 1 1 1 1
+				l1 ^= b;
+				u1 ^= b;
+				l2 ^= b;
+				u2 ^= b;
+				continue; // ?
+			}
+			// 1 1 0 1
+			l2 = u2&(~(b-1));
+			l1 ^= b;
+			u1 ^= b;
+			l2 ^= b;
+			u2 ^= b;
+		}
+		int min = max(l1, l2);
 		return i(min, max);
 	}
 	
