@@ -310,11 +310,8 @@ public class Interval {
 		}
 		if (l1 < 0) {
 			if (l2 < 0) {
-				Interval r1 = or(i(l1&ma, ma), i(l2&ma, ma));
-				Interval r2 = or(i(l1&ma, ma), i(0, u2));
-				Interval r3 = or(i(0, u1), i(l2&ma, ma));
-				Interval r4 = or(i(0, u1), i(0, u2));
-				return i(min(r1.lower, min(r2.lower, r3.lower))|mi, r4.upper);
+				Interval r = or(i(0, u1), i(0, u2));
+				return i(min(l1, l2), r.upper);
 			}
 			Interval r1 = or(i(l1&ma, ma), i2);
 			Interval r2 = or(i(0, u1), i2);
@@ -950,6 +947,16 @@ public class Interval {
 			return i();
 		}
 		return i(max(a.lower, b.lower), a.upper);
+	}
+	
+	public static Interval singleNotEqual(Interval a, Interval b) {
+		if (a.isEmpty() || b.isEmpty()) {
+			throw new IllegalArgumentException("intervals cannot be empty");
+		}
+		if (b.size() < 2) {
+			return Interval.complement(a, b);
+		}
+		return a;
 	}
 
 	public static Interval widen(Interval a, Interval b) {

@@ -96,12 +96,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		branchState.copyFrom(current);
 
 		if (current.isBottom()) {
-			debug.println("State is bottom at: "+s);
+			// debug.println("State is bottom at: "+s);
 			fallState = IntervalPerVar.bottom();
 			branchState = IntervalPerVar.bottom();
 		} else if (s instanceof DefinitionStmt) {
 			// handles also AssignStmt and IdentityStmt
-			debug.println("Definition stmt: "+s);
+			// debug.println("Definition stmt: "+s);
 			DefinitionStmt sd = (DefinitionStmt) s;
 			Value left = sd.getLeftOp();
 			Value right = sd.getRightOp();
@@ -123,7 +123,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			}
 		} else if (s instanceof JInvokeStmt) {
 			// A method is called. e.g. AircraftControl.adjustValue
-			debug.println("Invoke stmt: "+s);
+			// debug.println("Invoke stmt: "+s);
 			// You need to check the parameters here.
 			InvokeExpr expr = s.getInvokeExpr();
 			if (expr.getMethod().getName().equals("adjustValue")) {
@@ -149,13 +149,13 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				}
 			}
 		} else if (s instanceof IfStmt) {
-			debug.println("If stmt: "+s);
+			// debug.println("If stmt: "+s);
 			ifStatement((IfStmt) s);
 		} else if (s instanceof GotoStmt) {
-			debug.println("Goto stmt: "+s);
+			// debug.println("Goto stmt: "+s);
 			fallState.copyFrom(IntervalPerVar.bottom());
 		} else if (s instanceof ReturnStmt || s instanceof ReturnVoidStmt) {
-			debug.println("Return stmt: "+s);
+			// debug.println("Return stmt: "+s);
 			fallState.copyFrom(IntervalPerVar.bottom());
 			branchState.copyFrom(IntervalPerVar.bottom());
 		} else if (s instanceof TableSwitchStmt
@@ -168,7 +168,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 					+ s.getClass().getCanonicalName());
 		} else {
 			// NopStmt
-			debug.println("Nop stmt: "+s);
+			// debug.println("Nop stmt: "+s);
 		}
 
 		if (loopsExecs.containsKey(op)) {
@@ -181,9 +181,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			}
 		}
 
-		debug.println("\tCurrent:"+current);
-		debug.println("\tFall:"+fallState);
-		debug.println("\tBranch:"+branchState);
+		// debug.println("\tCurrent:"+current);
+		// debug.println("\tFall:"+fallState);
+		// debug.println("\tBranch:"+branchState);
 
 		// TODO: Maybe avoid copying objects too much. Feel free to optimize.
 		for (IntervalPerVar fnext : fallOut) {
@@ -286,10 +286,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				}
 
 				protected Interval transformFirstNeg(Interval a, Interval b) {
-					if (b.size() < 2) {
-						return Interval.complement(a, b);
-					}
-					return a;
+					return Interval.singleNotEqual(a, b);
 				}
 
 				protected Interval transformSecond(Interval a, Interval b) {
@@ -297,10 +294,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				}
 
 				protected Interval transformSecondNeg(Interval a, Interval b) {
-					if (a.size() < 2) {
-						return Interval.complement(b, a);
-					}
-					return b;
+					return Interval.singleNotEqual(b, a);
 				}
 			});
 		} else if (condition instanceof GeExpr) {
@@ -380,10 +374,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		} else if (condition instanceof NeExpr) {
 			handleConditon((ConditionExpr) condition, new ConditionStrategy() {
 				protected Interval transformFirst(Interval a, Interval b) {
-					if (b.size() < 2) {
-						return Interval.complement(a, b);
-					}
-					return a;
+					return Interval.singleNotEqual(a, b);
 				}
 
 				protected Interval transformFirstNeg(Interval a, Interval b) {
@@ -391,10 +382,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				}
 
 				protected Interval transformSecond(Interval a, Interval b) {
-					if (a.size() < 2) {
-						return Interval.complement(b, a);
-					}
-					return b;
+					return Interval.singleNotEqual(b, a);
 				}
 
 				protected Interval transformSecondNeg(Interval a, Interval b) {
@@ -408,10 +396,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		Value left = ce.getOp1();
 		Value right = ce.getOp2();
 
-		debug.println("\thandle condition");
-		debug.println("\t\tCondition: "+ce);
-		debug.println("\t\tLeft: "+left);
-		debug.println("\t\tRight: "+right);
+		// debug.println("\thandle condition");
+		// debug.println("\t\tCondition: "+ce);
+		// debug.println("\t\tLeft: "+left);
+		// debug.println("\t\tRight: "+right);
 
 		Interval i1 = tryGetIntervalForValue(current, left);
 		Interval i2 = tryGetIntervalForValue(current, right);
@@ -520,9 +508,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	@Override
 	protected void merge(Unit succ, IntervalPerVar src1, IntervalPerVar src2,
 			IntervalPerVar trg) {
-		debug.println("Merge:" + succ);
-		debug.println("\ta: "+src1);
-		debug.println("\tb: "+src2);
+		// debug.println("Merge:" + succ);
+		// debug.println("\ta: "+src1);
+		// debug.println("\tb: "+src2);
 		if (src1.isWidenMarkedAt(succ)) {
 			trg.widen(src2, src1);
 		} else if (src2.isWidenMarkedAt(succ)) {
@@ -530,7 +518,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		} else {
 			trg.merge(src1, src2);
 		}
-		debug.println("\ttrg: "+trg);
+		// debug.println("\ttrg: "+trg);
 	}
 
 	@Override
@@ -551,8 +539,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	private IntervalPerVar branchState;
 	private Map<Unit, Integer> loopsExecs;
 	private Map<Unit, Unit> loopsBackToHead;
-	private static PrintStream debugPrt = System.out;
+	/*private static PrintStream debugPrt = System.out;
 	private static PrintStream debugNoPrt = new PrintStream(new OutputStream() {
 	@Override public void write(int b) throws IOException { } });
-	private	static PrintStream debug = debugNoPrt;
+	private	static PrintStream debug = debugNoPrt;*/
 }
