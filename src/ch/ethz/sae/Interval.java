@@ -1,41 +1,13 @@
 package ch.ethz.sae;
 
 import static ch.ethz.sae.IntervalHelper.*;
+import static ch.ethz.sae.BinaryHelper.*;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.ListIterator;
 
 public class Interval {
-
-	private static class BinaryInterval {
-		private final int base;
-		private final int n;
-
-		private BinaryInterval(int base, int n) {
-			assert n <= 32 && n >= 0 : n;
-			this.base = base & (~(b(32-n)-1));
-			this.n = n;
-		}
-
-		@Override
-		public String toString() {
-			StringBuilder sb = new StringBuilder();
-			int b = 0x80000000;
-			for (int i = 0; i < n; ++i) {
-				sb.append((base & b) != 0 ? '1' : '0');
-				b >>>= 1;
-			}
-			for (int i = 0; i < 32 - n; ++i) {
-				sb.append('x');
-			}
-			return sb.toString();
-		}
-	}
-
 	public Interval() {
 		lower = 1;
 		upper = 0;
@@ -150,26 +122,6 @@ public class Interval {
 		return 0;
 	}
 
-	public List<BinaryInterval> splitIntoBinary() {
-		List<BinaryInterval> result = new ArrayList<BinaryInterval>();
-		int begin = lower;
-		while (begin <= upper) {
-			int base = 1 << 31;
-			for (int i = 1; i <= 32; ++i) {
-				int x = ~(base - 1) & begin;
-				if (contains(x) && contains(x | (base - 1))) {
-					result.add(new BinaryInterval(x, i));
-					if ((x | (base - 1)) == ma)
-						return result;
-					begin = (x | (base - 1)) + 1;
-					break;
-				}
-				base >>>= 1;
-			}
-		}
-		return result;
-	}
-
 	// TRANSFORMERS
 	public static Interval plus(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
@@ -211,6 +163,7 @@ public class Interval {
 			return top();
 		}
 		if (i1.lower == mi && i2.upper == -1) {
+			// overflow case
 			if (i1.upper >= mi+1) {
 				return i(mi, ma);
 			}
@@ -242,8 +195,10 @@ public class Interval {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
 		if (getOverflowType((long)i1.lower * i2.lower) != 0
-				|| getOverflowType((long)i1.upper * i2.upper) != 0) {
-			if (i1.size() < 100 && i2.size() < 100 && i1.size()*i2.size() < 100) {
+				|| getOverflowType((long)i1.upper * i2.upper) != 0
+				|| getOverflowType((long)i1.lower * i2.upper) != 0
+				|| getOverflowType((long)i1.upper * i2.lower) != 0) {
+			if (i1.size() <= 50 && i2.size() <= 50 && i1.size()*i2.size() <= 50) {
 				int min = ma;
 				int max = mi;
 				for (long i = i1.lower; i <= i1.upper; ++i) {
@@ -285,125 +240,39 @@ public class Interval {
 		int u1 = i1.upper;
 		int u2 = i2.upper;
 		if (u1 < 0) {
-			Interval r = or(i(l1&ma, u1&ma), i2);
-			return i(r.lower|mi, r.upper|mi);
-		}
-		if (u2 < 0) {
-			Interval r = or(i1, i(l2&ma, u2&ma));
-			return i(r.lower|mi, r.upper|mi);
+			if (u2 < 0) {
+				// neg neg
+				return i(orMin(l1&ma, u1&ma, l2&ma, u2&ma)|mi, orMax(l1&ma, u1&ma, l2&ma, u2&ma)|mi);
+			}
+			if (l2 < 0) {
+				// neg mix
+				return i(orMin(l1&ma, u1&ma, l2, u2)|mi, orMax(l1&ma, u1&ma, l2, u2)|mi);	
+			}
+			// neg pos
+			return i(orMin(l1&ma, u1&ma, l2&ma, ma)|mi, orMax(l1&ma, u1&ma, 0, u2)|mi);
 		}
 		if (l1 < 0) {
-			if (l2 < 0) {
-				Interval r = or(i(0, u1), i(0, u2));
-				return i(min(l1, l2), r.upper);
+			if (u2 < 0) {
+				// mix neg
+				return i(orMin(l1&ma, ma, l2&ma, u2&ma)|mi, orMax(0, u1, l2&ma, u2&ma)|mi);
 			}
-			Interval r1 = or(i(l1&ma, ma), i2);
-			Interval r2 = or(i(0, u1), i2);
-			return i(r1.lower|mi, r2.upper);
+			if (l2 < 0) {
+				// mix mix
+				return i(min(l1, l2), orMax(0, u1, 0, u2));	
+			}
+			// mix pos
+			return i(orMin(l1&ma, ma, l2, u2)|mi, orMax(0, u1, l2, u2));
+		}
+		if (u2 < 0) {
+			// pos neg
+			return i(orMin(l1, u1, l2&ma, u2&ma)|mi, orMax(l1, u1, l2&ma, u2&ma)|mi);
 		}
 		if (l2 < 0) {
-			Interval r1 = or(i1, i(l2&ma, ma));
-			Interval r2 = or(i1, i(0, u2));
-			return i(r1.lower|mi, r2.upper);
+			// pos mix
+			return i(orMin(l1, u1, l2&ma, ma)|mi, orMax(l1, u1, 0, u2));
 		}
-		int b = b(30);
-		for (int i = 1; i < 32; ++i, b >>>= 1) {
-			if ((u1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 0 0 0
-					continue; // ?
-				}
-				l1 ^= b;
-				u1 ^= b;
-				if ((l2 & b) != 0) {
-					// 0 0 1 1
-					continue;
-				}
-				// 0 0 0 1
-				l2 = u2&(~(b-1));
-				continue;
-			}
-			if ((l1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 1 0 0
-					l2 ^= b;
-					u2 ^= b;
-					l1 = u1&(~(b-1));
-					continue;
-				}
-				u1 |= b-1;
-				u2 = u1;
-				break;
-			}
-			if ((u2 & b) == 0) {
-				// 1 1 0 0
-				l2 ^= b;
-				u2 ^= b;
-				continue;
-			}
-			if ((l2 & b) != 0) {
-				// 1 1 1 1
-				continue; // ?
-			}
-			// 1 1 0 1
-			u1 |= b-1;
-			u2 = u1;
-			break;
-		}
-		int max = min(u1, u2);
-		b = b(30);
-		l1 = i1.lower;
-		l2 = i2.lower;
-		u1 = i1.upper;
-		u2 = i2.upper;
-		for (int i = 1; i < 32; ++i, b >>>= 1) {
-			if ((u1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 0 0 0
-					continue; // ?
-				}
-				if ((l2 & b) != 0) {
-					// 0 0 1 1
-					l1 ^= b;
-					u1 ^= b;
-					continue;
-				}
-				// 0 0 0 1
-				u2 = l2|(b-1);
-				continue;
-			}
-			if ((l1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 1 0 0
-					u1 = l1|(b-1);
-					continue;
-				}
-				if ((l2 & b) != 0) {
-					// 0 1 1 1
-					l1 = l2;
-					break;
-				}
-				// 0 1 0 1
-				l2 &= (~(b-1));
-				l1 = l2;
-				break;
-			}
-			if ((u2 & b) == 0) {
-				// 1 1 0 0
-				l2 ^= b;
-				u2 ^= b;
-				continue;
-			}
-			if ((l2 & b) != 0) {
-				// 1 1 1 1
-				continue; // ?
-			}
-			// 1 1 0 1
-			l2 = l1;
-			break;
-		}
-		int min = max(l1, l2);
-		return i(min, max);
+		// pos pos
+		return i(orMin(l1, u1, l2, u2), orMax(l1, u1, l2, u2));
 	}
 
 	public static Interval and(Interval i1, Interval i2) {
@@ -414,154 +283,43 @@ public class Interval {
 		int l2 = i2.lower;
 		int u1 = i1.upper;
 		int u2 = i2.upper;
-		if (l1 < 0) {
-			if (u1 < 0) {
-				if (l2 < 0) {
-					if (u2 < 0) {
-						// neg neg
-						Interval r = and(i(l1&ma, u1&ma), i(l2&ma, u2&ma));
-						return i(r.lower|mi, r.upper|mi);
-					}
-					// neg mix
-					Interval r1 = and(i(l1&ma, u1&ma), i(l2&ma, ma));
-					Interval r2 = and(i(l1&ma, u1&ma), i(0, u2));
-					return i(r1.lower|mi, r2.upper);
-				}
-				// neg pos
-				return and(i(l1&ma, u1&ma), i2);
+		if (u1 < 0) {
+			if (u2 < 0) {
+				// neg neg
+				return i(andMin(l1&ma, u1&ma, l2&ma, u2&ma)|mi, andMax(l1&ma, u1&ma, l2&ma, u2&ma)|mi);
 			}
 			if (l2 < 0) {
-				if (u2 < 0) {
-					// mix neg
-					Interval r1 = and(i(l2&ma, u2&ma), i(l1&ma, ma));
-					Interval r2 = and(i(l2&ma, u2&ma), i(0, u1));
-					return i(r1.lower|mi, r2.upper);
-				}
+				// neg mix
+				return i(andMin(l1&ma, u1&ma, l2&ma, ma)|mi, andMax(l1&ma, u1&ma, 0, u2));	
+			}
+			// neg pos
+			return i(andMin(l1&ma, u1&ma, l2, u2), andMax(l1&ma, u1&ma, l2, u2));
+		}
+		if (l1 < 0) {
+			if (u2 < 0) {
+				// mix neg
+				return i(andMin(l1&ma, ma, l2&ma, u2&ma)|mi, andMax(0, u1, l2&ma, u2&ma));
+			}
+			if (l2 < 0) {
 				// mix mix
-				Interval r1 = and(i(l1&ma, ma), i(l2&ma, ma));
-				Interval r2 = and(i(0, u1), i(0, u2));
-				return i(r1.lower|mi, r2.upper);
+				return i(andMin(l1&ma, ma, l2&ma, ma)|mi, max(u1, u2));	
 			}
 			// mix pos
 			return i(0, u2);
 		}
+		if (u2 < 0) {
+			// pos neg
+			return i(andMin(l1, u1, l2&ma, u2&ma), andMax(l1, u1, l2&ma, u2&ma));
+		}
 		if (l2 < 0) {
-			if (u2 < 0) {
-				// pos neg
-				return and(i1, i(l2&ma, u2&ma));
-			}
 			// pos mix
 			return i(0, u1);
 		}
 		// pos pos
-		int b = b(30);
-		for (int i = 1; i < 32; ++i, b >>>= 1) {
-			if ((u1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 0 0 0
-					continue; // ?
-				}
-				if ((l2 & b) != 0) {
-					// 0 0 1 1
-					l2 ^= b;
-					u2 ^= b;
-					continue;
-				}
-				// 0 0 0 1
-				u2 = u1;
-				break;
-			}
-			if ((l1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 1 0 0
-					u1 = u2;
-					break;
-				}
-				if ((l2 & b) != 0) {
-					// 0 1 1 1
-					l1 = u1&(~(b-1));
-					continue;
-				}
-				// 0 1 0 1
-				if (u1 < u2) {
-					u2 = u1;
-				}
-				u1 = u2;
-				break;
-			}
-			if ((u2 & b) == 0) {
-				// 1 1 0 0
-				l1 ^= b;
-				u1 ^= b;
-				continue;
-			}
-			if ((l2 & b) != 0) {
-				// 1 1 1 1
-				continue; // ?
-			}
-			// 1 1 0 1
-			l2 = u2&(~(b-1));
-		}
-		int max = min(u1, u2);
-		b = b(30);
-		l1 = i1.lower;
-		l2 = i2.lower;
-		u1 = i1.upper;
-		u2 = i2.upper;
-		for (int i = 1; i < 32; ++i, b >>>= 1) {
-			if ((u1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 0 0 0
-					continue; // ?
-				}
-				if ((l2 & b) != 0) {
-					// 0 0 1 1
-					l2 ^= b;
-					u2 ^= b;
-					continue;
-				}
-				// 0 0 0 1
-				l1 &= (~(b-1));
-				l2 = l1;
-				break;
-			}
-			if ((l1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 1 0 0
-					l2 &= (~(b-1));
-					l1 = l2;
-					break;
-				}
-				if ((l2 & b) != 0) {
-					// 0 1 1 1
-					u1 = l1|(b-1);
-					l2 ^= b;
-					u2 ^= b;
-					continue;
-				}
-				// 0 1 0 1
-				l2 &= (~(b-1));
-				l1 = l2;
-				break;
-			}
-			if ((u2 & b) == 0) {
-				// 1 1 0 0
-				l1 ^= b;
-				u1 ^= b;
-				continue;
-			}
-			if ((l2 & b) != 0) {
-				// 1 1 1 1
-				continue; // ?
-			}
-			// 1 1 0 1
-			u2 = l2|(b-1);
-			l1 ^= b;
-			u1 ^= b;
-		}
-		int min = max(l1, l2);
-		return i(min, max);
+		return i(andMin(l1, u1, l2, u2), andMax(l1, u1, l2, u2));
 	}
+	
+	
 
 	public static Interval xor(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
@@ -571,223 +329,71 @@ public class Interval {
 		int l2 = i2.lower;
 		int u1 = i1.upper;
 		int u2 = i2.upper;
-		if (l1 < 0) {
-			if (u1 < 0) {
-				if (l2 < 0) {
-					if (u2 < 0) {
-						// neg neg
-						return xor(i(l1&ma, u1&ma), i(l2&ma, u2&ma));
-					}
-					// neg mix
-					Interval r1 = xor(i(l1&ma, u1&ma), i(0, u2));
-					Interval r2 = xor(i(l1&ma, u1&ma), i(l2&ma, ma));
-					return i(r1.lower|mi, r2.upper);
-				}
-				// neg pos
-				Interval r = xor(i(l1&ma, u1&ma), i2);
-				return i(r.lower|mi, r.upper|mi);
+		if (u1 < 0) {
+			if (u2 < 0) {
+				// neg neg
+				return i(xorMin(l1&ma, u1&ma, l2&ma, u2&ma), xorMax(l1&ma, u1&ma, l2&ma, u2&ma));
 			}
 			if (l2 < 0) {
-				if (u2 < 0) {
-					// mix neg
-					Interval r1 = xor(i(0, u1), i(l2&ma, u2&ma));
-					Interval r2 = xor(i(l1&ma, ma), i(l2&ma, u2&ma));
-					return i(r1.lower|mi, r2.upper);
-				}
+				// neg mix
+				return i(xorMin(l1&ma, u1&ma, 0, u2)|mi, xorMax(l1&ma, u1&ma, l1&ma, ma));	
+			}
+			// neg pos
+			return i(xorMin(l1&ma, u1&ma, l2, u2)|mi, xorMax(l1&ma, u1&ma, l2, u2)|mi);
+		}
+		if (l1 < 0) {
+			if (u2 < 0) {
+				// mix neg
+				return i(xorMin(0, u1, l2&ma, u2&ma)|mi, xorMax(l1&ma, ma, l2&ma, u2&ma));
+			}
+			if (l2 < 0) {
 				// mix mix
-				Interval r1 = xor(i(0, u1), i(l2&ma, ma));
-				Interval r2 = xor(i(l1&ma, ma), i(0, u2));
-				Interval r3 = xor(i(0, u1), i(0, u2));
-				Interval r4 = xor(i(l1&ma, ma), i(l2&ma, ma));
-				return i(min(r1.lower|mi, r2.lower|mi), max(r3.upper, r4.upper));
+				return i(min(xorMin(0, u1, l2&ma, ma)|mi, xorMin(l1&ma, ma, 0, u2)|mi),
+						max(xorMax(0, u1, 0, u2), xorMax(l1&ma, ma, l2&ma, ma)));	
 			}
 			// mix pos
-			Interval r1 = xor(i(l1&ma, ma), i2);
-			Interval r2 = xor(i(0, u1), i2);
-			return i(r1.lower|mi, r2.upper);
+			return i(xorMin(l1&ma, ma, l2, u2)|mi, xorMax(0, u1, l2, u2));
+		}
+		if (u2 < 0) {
+			// pos neg
+			return i(xorMin(l1, u1, l2&ma, u2&ma)|mi, xorMax(l1, u1, l2&ma, u2&ma)|mi);
 		}
 		if (l2 < 0) {
-			if (u2 < 0) {
-				// pos neg
-				Interval r = xor(i1, i(l2&ma, u2&ma));
-				return i(r.lower|mi, r.upper|mi);
-			}
 			// pos mix
-			Interval r1 = xor(i1, i(l2&ma, ma));
-			Interval r2 = xor(i1, i(0, u2));
-			return i(r1.lower|mi, r2.upper);
+			return i(xorMin(l1, u1, l2&ma, ma)|mi, xorMax(l1, u1, 0, u2));
 		}
 		// pos pos
-		int b = b(30);
-		for (int i = 1; i < 32; ++i, b >>>= 1) {
-			if ((u1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 0 0 0
-					continue; // ?
-				}
-				l1 ^= b;
-				u1 ^= b;
-				if ((l2 & b) != 0) {
-					// 0 0 1 1
-					continue;
-				}
-				// 0 0 0 1
-				l2 = u2&(~(b-1));
-				continue;
-			}
-			if ((l1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 1 0 0
-					l2 ^= b;
-					u2 ^= b;
-					l1 = u1&(~(b-1));
-					continue;
-				}
-				if ((l2 & b) != 0) {
-					// 0 1 1 1
-					l1 ^= b;
-					u1 = l1|(b-1);
-					continue;
-				}
-				// 0 1 0 1
-				u2 |= (b-1);
-				u1 = u2;
-				break;
-			}
-			if ((u2 & b) == 0) {
-				// 1 1 0 0
-				l2 ^= b;
-				u2 ^= b;
-				continue;
-			}
-			if ((l2 & b) != 0) {
-				// 1 1 1 1
-				l1 ^= b;
-				u1 ^= b;
-				l2 ^= b;
-				u2 ^= b;
-				continue; // ?
-			}
-			// 1 1 0 1
-			l2 ^= b;
-			u2 = l2|(b-1);
-		}
-		int max = min(u1, u2);
-		b = b(30);
-		l1 = i1.lower;
-		l2 = i2.lower;
-		u1 = i1.upper;
-		u2 = i2.upper;
-		for (int i = 1; i < 32; ++i, b >>>= 1) {
-			if ((u1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 0 0 0
-					continue; // ?
-				}
-				if ((l2 & b) != 0) {
-					// 0 0 1 1
-					l1 ^= b;
-					u1 ^= b;
-					continue;
-				}
-				// 0 0 0 1
-				u2 = l2|(b-1);
-				continue;
-			}
-			if ((l1 & b) == 0) {
-				if ((u2 & b) == 0) {
-					// 0 1 0 0
-					u1 = l1|(b-1);
-					continue;
-				}
-				if ((l2 & b) != 0) {
-					// 0 1 1 1
-					l1 = u1&(~(b-1));
-					l1 ^= b;
-					u1 ^= b;
-					l2 ^= b;
-					u2 ^= b;
-					continue;
-				}
-				// 0 1 0 1
-				l2 &= (~(b-1));
-				l1 = l2;
-				break;
-			}
-			if ((u2 & b) == 0) {
-				// 1 1 0 0
-				l2 ^= b;
-				u2 ^= b;
-				continue;
-			}
-			if ((l2 & b) != 0) {
-				// 1 1 1 1
-				l1 ^= b;
-				u1 ^= b;
-				l2 ^= b;
-				u2 ^= b;
-				continue; // ?
-			}
-			// 1 1 0 1
-			l2 = u2&(~(b-1));
-			l1 ^= b;
-			u1 ^= b;
-			l2 ^= b;
-			u2 ^= b;
-		}
-		int min = max(l1, l2);
-		return i(min, max);
-	}
-	
-	private static List<Interval> shiftIntervals(Interval i) {
-		if (i.size() >= 32) {
-			return Arrays.asList(i(0, 31));
-		}
-		int x = i.lower % 32;
-		int y = i.upper % 32;
-		if (x < 0)
-			x += 32;
-		if (y < 0)
-			y += 32;
-		if (x <= y) {
-			return Arrays.asList(i(x, y));
-		}
-		return Arrays.asList(i(0, y), i(x, 31));
-	}
-	
-	private static Interval shiftInterval(Interval i) {
-		Interval result = i();
-		for (Interval si : shiftIntervals(i)) {
-			result = union(result, si);
-		}
-		return result;
+		return i(xorMin(l1, u1, l2, u2), xorMax(l1, u1, l2, u2));
 	}
 
 	public static Interval shl(Interval i1, Interval i2) {
 		if (i1.isEmpty() || i2.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		List<Interval> si = shiftIntervals(i2);
-		List<BinaryInterval> bi1 = i1.splitIntoBinary();
-		int min = ma;
 		int max = mi;
-		ListIterator<BinaryInterval> it1 = bi1.listIterator();
-		while (it1.hasNext()) {
-			BinaryInterval a = it1.next();
-			int mask = ((1 << (32 - a.n)) - 1);
-			int ones = a.base|mask;
-			for (Interval sint : si) {
-				for (int i = sint.lower; i <= sint.upper; ++i) {
-					int x = a.base<<i;
-					int y = ones<<i;
-					min = min(min, min(x, y));
-					max = max(max, max(x, y));
-					if (a.n <= i) {
-						min = min(min, min(x^0x80000000, y^0x80000000));
-						max = max(max, max(x^0x80000000, y^0x80000000));
-					}
+		int min = ma;
+		for (Interval si : shiftIntervals(i2)) {
+			Interval r = i1;
+			if (si.lower == 0) {
+				min = min(min, i1.lower);
+				max = max(max, i1.upper);
+				if (si.upper == 0) {
+					continue;
 				}
 			}
+			if (i1.upper < 0) {
+				r = shlPositive(i1.lower&ma, i1.upper&ma, max(1, si.lower), si.upper);
+			} else if (i1.lower < 0) {
+				// FIXME not tested in intervalShlTest
+				r = shlPositive(i1.lower&ma, ma, max(1, si.lower), si.upper);
+				min = min(min, r.lower);
+				max = max(max, r.upper);
+				r = shlPositive(0, i1.upper, max(1, si.lower), si.upper);
+			} else {
+				r = shlPositive(i1.lower, i1.upper, si.lower, si.upper);
+			}
+			min = min(min, r.lower);
+			max = max(max, r.upper);
 		}
 		return i(min, max);
 	}

@@ -17,7 +17,6 @@ public class IntervalMultiplicationTest extends IntervalBinaryOperationTest {
 
 	@Parameterized.Parameters
 	public static Collection<Interval[]> intervals() {
-		// FIXME
 		return Arrays.asList(new Interval[][] {
 				{ i(0), i(5312512), i(0) }, // point
 				{ i(1), i(5312512), i(5312512) }, // .
@@ -31,6 +30,10 @@ public class IntervalMultiplicationTest extends IntervalBinaryOperationTest {
 				{ i(mi), i(2), i(0) }, // . . overflow
 				{ i(mi), i(3), i(mi) }, // . . .
 				{ i(mi), i(mi), i(0) }, // . . .
+				
+				{ i(0, ma), i(mi, -1), i(mi, ma)}, // l*u overflow 
+				
+				// No overflow cases
 				{ i(2,5), i(4,6), i(8,30) },
 				{ i(2,5), i(-6,-4), i(-30,-8) },
 				{ i(2,5), i(-4,6), i(-20,30) },

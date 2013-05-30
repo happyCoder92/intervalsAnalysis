@@ -34,6 +34,12 @@ public class IntervalXorTest extends IntervalBinaryOperationTest {
 				{ i(1, 2), i(1, 2), i(0, 3) }, // range
 				{ i(mi, ma), i(mi, ma), i(mi, ma) }, // .
 				{ i(mi, ma), i(153151, 2124412), i(mi, ma) }, // .
+				{ i(1), i(1), i(0) }, // pos pos
+				{ i(1), i(-1), i(-2) }, // pos neg
+				{ i(-1), i(-1), i(0) }, // neg neg
+				{ i(1), i(-1, 1), i(-2, 1) }, // pos mix
+				{ i(-1), i(-1, 1), i(-2, 0) }, // neg mix
+				{ i(-1, 1), i(-1, 1), i(-2, 1) }, // mix mix
 				// TODO maybe some random generated
 				});
 	}
