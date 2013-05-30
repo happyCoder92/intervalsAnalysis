@@ -8,6 +8,14 @@ import java.util.Arrays;
 import java.util.List;
 
 public class BinaryHelper {
+	private static int clog2Table[] = new int[256]; 
+	static {
+		clog2Table[0] = 0;
+		clog2Table[1] = 1;
+		for (int i = 2; i < 256; ++i) {
+			clog2Table[i] = 1 + clog2Table[i / 2];
+		}
+	}
 	public static int orMax(int l1, int u1, int l2, int u2) {
 		int b = b(30);
 		for (int i = 1; i < 32; ++i, b >>>= 1) {
@@ -238,19 +246,24 @@ public class BinaryHelper {
 		return result;
 	}
 	
-	public static int log2(int i) {
-		int n = 0;
-		while (i != 0) {
-			i >>>= 1;
-			++n;
+	public static int clog2(int i) {
+		int tt;
+		if ((tt = i >> 24) != 0) {
+		  return 24 + clog2Table[tt];
+		} else if ((tt = i >> 16) != 0) {
+		  return 16 + clog2Table[tt];
+		} else if ((tt = i >> 8) != 0) {
+		  return 8 + clog2Table[tt];
+		} else {
+		  return clog2Table[i];
 		}
-		return n;
 	}
 	
 	public static Interval shlPositive(int l1, int u1, int l2, int u2) {
+		// check boundaries (ru == 32), (ru == 0) etc.
 		int min = l1 << l2;
 		int max = mi;
-		int ru = 32-log2(u1);
+		int ru = 32-clog2(u1);
 		int bu = mi>>>ru;
 		if (u2 < ru) {
 			return i(l1 << l2, u1 << u2);
