@@ -132,22 +132,6 @@ public class Interval {
 		return i(a.lower, b.upper);
 	}
 
-	public static Interval complement(Interval a, Interval b) {
-		if (b.contains(a)) {
-			return i();
-		}
-		if (b.isEmpty() || (a.lower < b.lower && a.upper > b.upper)) {
-			return a;
-		}
-		if (a.upper < b.lower || a.lower > b.upper) {
-			return a;
-		}
-		if (b.upper < a.upper) {
-			return i(b.upper+1, a.upper);
-		}
-		return i(a.lower, b.lower-1);
-	}
-
 	public static Interval top() {
 		return i(mi, ma);
 	}
@@ -953,8 +937,16 @@ public class Interval {
 		if (a.isEmpty() || b.isEmpty()) {
 			throw new IllegalArgumentException("intervals cannot be empty");
 		}
-		if (b.size() < 2) {
-			return Interval.complement(a, b);
+		if (b.lower == b.upper) {
+			if (b.lower == a.lower) {
+				if (a.lower == a.upper) {
+					return i();
+				}
+				return i(a.lower+1, a.upper);
+			}
+			if (b.lower == a.upper) {
+				return i(a.lower, a.upper-1);
+			}
 		}
 		return a;
 	}
