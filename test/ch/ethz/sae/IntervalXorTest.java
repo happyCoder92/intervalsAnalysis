@@ -40,6 +40,7 @@ public class IntervalXorTest extends IntervalBinaryOperationTest {
 				{ i(1), i(-1, 1), i(-2, 1) }, // pos mix
 				{ i(-1), i(-1, 1), i(-2, 0) }, // neg mix
 				{ i(-1, 1), i(-1, 1), i(-2, 1) }, // mix mix
+				{ i(-1), i(-2, 1), i(-2, 1) }, // neg mix
 				// TODO maybe some random generated
 				});
 	}

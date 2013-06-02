@@ -64,6 +64,7 @@ public class IntervalModuloTest extends IntervalBinaryOperationTest {
 		return Arrays.asList(new Interval[][] {
 				{ i(10), i(5), i(0) }, // point
 				{ i(10), i(3), i(1) }, // .
+				{ i(1), i(0), i(mi, ma) }, // . division by zero
 				{ i(ma-1), i(ma), i(ma-1) }, // . boundaries
 				{ i(ma), i(ma), i(0) }, // . .
 				{ i(ma), i(mi), i(ma) }, // . .
@@ -77,6 +78,7 @@ public class IntervalModuloTest extends IntervalBinaryOperationTest {
 				{ i(6, 10), i(3), i(0, 2) }, // .
 				{ i(100, 120), i(54, 100), i(0, 59) }, // .
 				{ i(0, 4), i(2), i(0, 1) }, // .
+				{ i(1, 2), i(0), i(mi, ma) }, // . division by zero
 				{ i(0, ma), i(2), i(0, 1) }, // . boundaries
 				{ i(mi, 0), i(2), i(-1, 0) }, // . .
 				{ i(mi, ma), i(2), i(-1, 1) }, // . .
@@ -92,6 +94,7 @@ public class IntervalModuloTest extends IntervalBinaryOperationTest {
 				{ i(900712816, 900712830), i(16050, 16105), i() },
 				{ i(1370151185, 1370151229), i(24774, 24799), i() },
 				{ i(1397571597, 1397571686), i(2120,2149), i() },
+				{ i(1, 2), i(-1, 1), i(mi, ma) }, // . division by zero
 				});
 	}
 	
@@ -100,7 +103,7 @@ public class IntervalModuloTest extends IntervalBinaryOperationTest {
 		Interval res = operation(a, p);
 		if (p.lower != mi)
 			assertEquals(operation(a, p), operation(a, i(-p.upper, -p.lower)));
-		if (a.lower != mi) {
+		if (a.lower != mi && res.lower != mi) {
 			assertEquals(operation(i(-a.upper, -a.lower), p), i(-res.upper, -res.lower));
 			if (p.lower != mi)
 				assertEquals(operation(i(-a.upper, -a.lower), i(-p.upper, -p.lower)), i(-res.upper, -res.lower));

@@ -153,11 +153,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 			ifStatement((IfStmt) s);
 		} else if (s instanceof GotoStmt) {
 			// debug.println("Goto stmt: "+s);
-			fallState.copyFrom(IntervalPerVar.bottom());
+			fallState = IntervalPerVar.bottom();
 		} else if (s instanceof ReturnStmt || s instanceof ReturnVoidStmt) {
 			// debug.println("Return stmt: "+s);
-			fallState.copyFrom(IntervalPerVar.bottom());
-			branchState.copyFrom(IntervalPerVar.bottom());
+			fallState = IntervalPerVar.bottom();
+			branchState = IntervalPerVar.bottom();
 		} else if (s instanceof TableSwitchStmt
 				|| s instanceof LookupSwitchStmt) {
 			unhandled("4: Switch is not handled");
@@ -212,7 +212,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		if (right instanceof IntConstant) {
 			IntConstant c = ((IntConstant) right);
 			fallState
-					.putIntervalForVar(varName, new Interval(c.value, c.value));
+					.putIntervalForVar(varName, new Interval(c.value));
 		} else if (right instanceof JimpleLocal) {
 			JimpleLocal l = ((JimpleLocal) right);
 			fallState.putIntervalForVar(varName,
@@ -290,7 +290,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 				}
 
 				protected Interval transformSecond(Interval a, Interval b) {
-					return Interval.intersect(a, b);
+					return Interval.intersect(b, a);
 				}
 
 				protected Interval transformSecondNeg(Interval a, Interval b) {
@@ -481,7 +481,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	Interval tryGetIntervalForValue(IntervalPerVar currentState, Value v) {
 		if (v instanceof IntConstant) {
 			IntConstant c = ((IntConstant) v);
-			return new Interval(c.value, c.value);
+			return new Interval(c.value);
 		} else if (v instanceof JimpleLocal) {
 			JimpleLocal l = ((JimpleLocal) v);
 			return currentState.getIntervalForVar(l.getName());
@@ -523,9 +523,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 
 	@Override
 	protected IntervalPerVar newInitialFlow() {
-		IntervalPerVar flow = new IntervalPerVar();
-		flow.copyFrom(IntervalPerVar.bottom());
-		return flow;
+		return IntervalPerVar.bottom();
 	}
 
 	public boolean provedMethodSafe() {

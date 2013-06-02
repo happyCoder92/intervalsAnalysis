@@ -198,7 +198,7 @@ public class Interval {
 				|| getOverflowType((long)i1.upper * i2.upper) != 0
 				|| getOverflowType((long)i1.lower * i2.upper) != 0
 				|| getOverflowType((long)i1.upper * i2.lower) != 0) {
-			if (i1.size() <= 50 && i2.size() <= 50 && i1.size()*i2.size() <= 50) {
+			if (i1.size() <= 50 && i1.size()*i2.size() <= 50) {
 				int min = ma;
 				int max = mi;
 				for (long i = i1.lower; i <= i1.upper; ++i) {
@@ -246,15 +246,15 @@ public class Interval {
 			}
 			if (l2 < 0) {
 				// neg mix
-				return i(orMin(l1&ma, u1&ma, l2, u2)|mi, orMax(l1&ma, u1&ma, l2, u2)|mi);	
+				return i(l1, -1);
 			}
 			// neg pos
-			return i(orMin(l1&ma, u1&ma, l2&ma, ma)|mi, orMax(l1&ma, u1&ma, 0, u2)|mi);
+			return i(orMin(l1&ma, u1&ma, l2, u2)|mi, orMax(l1&ma, u1&ma, l2, u2)|mi);	
 		}
 		if (l1 < 0) {
 			if (u2 < 0) {
 				// mix neg
-				return i(orMin(l1&ma, ma, l2&ma, u2&ma)|mi, orMax(0, u1, l2&ma, u2&ma)|mi);
+				return i(l2, -1);
 			}
 			if (l2 < 0) {
 				// mix mix
@@ -336,7 +336,7 @@ public class Interval {
 			}
 			if (l2 < 0) {
 				// neg mix
-				return i(xorMin(l1&ma, u1&ma, 0, u2)|mi, xorMax(l1&ma, u1&ma, l1&ma, ma));	
+				return i(xorMin(l1&ma, u1&ma, 0, u2)|mi, xorMax(l1&ma, u1&ma, l2&ma, ma));	
 			}
 			// neg pos
 			return i(xorMin(l1&ma, u1&ma, l2, u2)|mi, xorMax(l1&ma, u1&ma, l2, u2)|mi);
@@ -384,7 +384,6 @@ public class Interval {
 			if (i1.upper < 0) {
 				r = shlPositive(i1.lower&ma, i1.upper&ma, max(1, si.lower), si.upper);
 			} else if (i1.lower < 0) {
-				// FIXME not tested in intervalShlTest
 				r = shlPositive(i1.lower&ma, ma, max(1, si.lower), si.upper);
 				min = min(min, r.lower);
 				max = max(max, r.upper);
@@ -420,6 +419,8 @@ public class Interval {
 		Interval si = shiftInterval(i2);
 		int lgtz = 31;
 		for (Interval i : sis) {
+			if (i.upper == 0)
+				continue;
 			lgtz = min(lgtz, max(i.lower, 1));
 		}
 		

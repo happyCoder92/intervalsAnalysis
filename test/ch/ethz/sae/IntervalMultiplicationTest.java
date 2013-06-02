@@ -31,7 +31,9 @@ public class IntervalMultiplicationTest extends IntervalBinaryOperationTest {
 				{ i(mi), i(3), i(mi) }, // . . .
 				{ i(mi), i(mi), i(0) }, // . . .
 				
-				{ i(0, ma), i(mi, -1), i(mi, ma)}, // l*u overflow 
+				{ i(0, ma), i(mi, -1), i(mi, ma)}, // l*u overflow
+				{ i(0, ma), i(0, ma), i(mi, ma)}, // u*u overflow
+				{ i(0, 49), i(0, ma), i(mi, ma)}, // overflow
 				
 				// No overflow cases
 				{ i(2,5), i(4,6), i(8,30) },

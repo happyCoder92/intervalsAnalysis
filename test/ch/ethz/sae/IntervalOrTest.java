@@ -35,10 +35,12 @@ public class IntervalOrTest extends IntervalBinaryOperationTest {
 				// TODO maybe some random generated
 				{ i(1), i(1), i(1) }, // pos pos
 				{ i(1), i(-1), i(-1) }, // pos neg
-				{ i(-1), i(-1), i(-1) }, // neg neg
 				{ i(1), i(-1, 1), i(-1, 1) }, // pos mix
+				{ i(-1), i(-1), i(-1) }, // neg neg
 				{ i(-1), i(-1, 1), i(-1) }, // neg mix
 				{ i(-1, 1), i(-1, 1), i(-1, 1) }, // mix mix
+				{ i(-1, 1), i(-2, 1), i(-2, 1) }, // mix mix
+				{ i(-2), i(2), i(-2) }, // pos neg
 				});
 	}
 

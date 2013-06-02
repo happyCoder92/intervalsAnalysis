@@ -17,7 +17,7 @@ public class IntervalHelper {
 	}
 	
 	public static Interval i(int i) {
-		return new Interval(i, i);
+		return new Interval(i);
 	}
 	
 	public static Interval i(int a, int b) {

@@ -49,6 +49,7 @@ public class IntervalSlrTest extends IntervalBinaryOperationTest {
 				{ i(-32), i(1, 2), i(-32>>>2, -32>>>1) }, // .
 				{ i(-32), i(2, 6), i(-32>>>6, -32>>>2) }, // .
 				{ i(-32), i(-1, 1), i(-32, -32>>>1) }, // .
+				{ i(-32), i(-1, 0), i(-32, -32>>>31) }, // .
 				{ i(mi), i(0, 1), i(mi, mi>>>1) }, // . boundaries
 				{ i(mi), i(0, 6), i(mi, mi>>>1) }, // . .
 				{ i(mi), i(1, 2), i(mi>>>2, mi>>>1) }, // . .

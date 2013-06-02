@@ -248,11 +248,11 @@ public class BinaryHelper {
 	
 	public static int clog2(int i) {
 		int tt;
-		if ((tt = i >> 24) != 0) {
+		if ((tt = i >>> 24) != 0) {
 		  return 24 + clog2Table[tt];
-		} else if ((tt = i >> 16) != 0) {
+		} else if ((tt = i >>> 16) != 0) {
 		  return 16 + clog2Table[tt];
-		} else if ((tt = i >> 8) != 0) {
+		} else if ((tt = i >>> 8) != 0) {
 		  return 8 + clog2Table[tt];
 		} else {
 		  return clog2Table[i];
@@ -260,7 +260,6 @@ public class BinaryHelper {
 	}
 	
 	public static Interval shlPositive(int l1, int u1, int l2, int u2) {
-		// check boundaries (ru == 32), (ru == 0) etc.
 		int min = l1 << l2;
 		int max = mi;
 		int ru = 32-clog2(u1);
@@ -275,16 +274,16 @@ public class BinaryHelper {
 			// min loop
 			for (int i = max(l2, ru+1); i <= u2; ++i) {
 				int b = mi>>>i;
-				if (u1 >= (u1&(~(bu-1))|b) || l1 <= (l1|(bu-1)&(~(b-1)))) {
+				if (u1 >= (bu|b) || l1 <= ((bu-1)&(~(b-1)))) {
 					min = mi;
 					break;
 				} 
-				min = min(min, (l1|b)<<i);
+				min = min(min, l1<<i);
 			}
 			// max loop
 			for (int i = max(l2, ru+1); i <= u2; ++i) {
 				int b = mi>>>i;
-				if (u1 >= (u1&(~(bu-1))|(b-1)) || l1 <= (l1|(bu-1)^b)) {
+				if (u1 >= (bu|(b-1)) || l1 <= ((bu-1)^b)) {
 					return i(min, (b-1) << i);
 				} 
 				max = max(max, u1<<i);
@@ -302,7 +301,7 @@ public class BinaryHelper {
 			for (int i = max(l2, ru+1); i <= u2; ++i) {
 				int b = mi>>>i;
 				if ((l1&(~(b-1))) != (u1&(~(b-1)))) {
-					if (u1 >= (l1&(~(b-1))|b|(b<<1)) || l1 <= (l1&(~(b-1))|b)) {
+					if (u1 >= (((l1&(~(b-1)))+b)|b)) {
 						min = mi;
 						break;
 					}
@@ -313,7 +312,9 @@ public class BinaryHelper {
 			for (int i = max(l2, ru+1); i <= u2; ++i) {
 				int b = mi>>>i;
 				if ((l1&(~(b-1))) != (u1&(~(b-1)))) {
-					return i(min, (b-1) << i);
+					if (u1 >= (((l1|(b-1))+b))) {
+						return i(min, (b-1) << i);
+					}
 				}
 				max = max(max, u1<<i);
 			}

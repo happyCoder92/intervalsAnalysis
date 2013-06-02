@@ -21,9 +21,17 @@ public class IntervalAndTest extends IntervalBinaryOperationTest {
 				{ i(0), i(0), i(0) }, // point
 				{ i(0), i(ma), i(0) }, // .
 				{ i(0), i(mi), i(0) }, // .
+				{ i(-1), i(24124), i(24124) }, // .
+				{ i(-1), i(-321421), i(-321421) }, // .
+				{ i(-2), i(-321421), i(-321422) }, // .
+				{ i(-2), i(24125), i(24124) }, // .
 				{ i(3072), i(511), i(0) }, // .
 				{ i(3072), i(1024), i(1024) }, // .
+				{ i(mi), i(mi), i(mi) }, // . boundaries
+				{ i(mi), i(ma), i(0) }, // . .
+				{ i(ma), i(ma), i(ma) }, // . .
 				{ i(0), i(mi, ma), i(0) }, // point range
+				{ i(0), i(0, 1), i(0) }, // .
 				{ i(14214), i(mi, ma), i(0, 14214) }, // .
 				{ i(-1), i(mi, ma), i(mi, ma) }, // .
 				{ i(-1), i(-5135, 6436), i(-5135, 6436) }, // .
