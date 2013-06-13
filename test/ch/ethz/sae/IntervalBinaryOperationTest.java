@@ -5,7 +5,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import org.junit.Test;
-import org.junit.experimental.categories.Categories.ExcludeCategory;
 
 public abstract class IntervalBinaryOperationTest extends IntervalBasicOperationTest<Interval, Interval> {
 	

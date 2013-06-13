@@ -1,4 +1,5 @@
 
+@SuppressWarnings("all")
 public class TestApplication3 {
 	
 	public static void meth1() {

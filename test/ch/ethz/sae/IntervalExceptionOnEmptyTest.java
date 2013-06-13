@@ -1,10 +1,7 @@
 package ch.ethz.sae;
 
 import static ch.ethz.sae.IntervalHelper.i;
-import static ch.ethz.sae.IntervalHelper.ma;
-import static ch.ethz.sae.IntervalHelper.mi;
 
-import java.rmi.server.Operation;
 import java.util.Arrays;
 import java.util.Collection;
 

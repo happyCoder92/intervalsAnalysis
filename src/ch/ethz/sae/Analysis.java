@@ -2,14 +2,13 @@ package ch.ethz.sae;
 
 import static ch.ethz.sae.IntervalHelper.i;
 
-import java.io.IOException;
+/*import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintStream;
+import java.io.PrintStream;*/
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import soot.SootMethod;
 import soot.Unit;
 import soot.Value;
 import soot.jimple.AddExpr;
@@ -47,7 +46,6 @@ import soot.jimple.XorExpr;
 import soot.jimple.internal.JArrayRef;
 import soot.jimple.internal.JInstanceFieldRef;
 import soot.jimple.internal.JInvokeStmt;
-import soot.jimple.internal.JStaticInvokeExpr;
 import soot.jimple.internal.JimpleLocal;
 import soot.jimple.toolkits.annotation.logic.Loop;
 import soot.toolkits.graph.LoopNestTree;
@@ -58,7 +56,6 @@ import soot.toolkits.scalar.ForwardBranchedFlowAnalysis;
 public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 	public Analysis(UnitGraph g) {
 		super(g);
-		method = g.getBody().getMethod();
 		safe = true;
 		LoopNestTree loopTree = new LoopNestTree(g.getBody());
 		loopsExecs = new HashMap<Unit, Integer>();
@@ -530,7 +527,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<IntervalPerVar> {
 		return safe;
 	}
 
-	private final SootMethod method;
 	private boolean safe;
 	private IntervalPerVar current;
 	private IntervalPerVar fallState;

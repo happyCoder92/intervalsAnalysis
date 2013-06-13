@@ -28,6 +28,7 @@ public class TestApplication4 {
 		AircraftControl.adjustValue(0, value);
 	}
 	
+	@SuppressWarnings("all")
 	public static void adjustNoBug() {
 		int value = AircraftControl.readSensor(0);
 		if (1 > 2) {
